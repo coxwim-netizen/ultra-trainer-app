@@ -329,7 +329,7 @@ async function authedFetch(url, options) {
 }
 
 async function callClaude(prompt, maxTok) {
-  var res = await authedFetch("/.netlify/functions/claude", {
+  var res = await authedFetch("/api/claude", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({
@@ -350,7 +350,7 @@ async function callClaude(prompt, maxTok) {
 }
 
 async function loadPublicConfig() {
-  var res = await fetch("/.netlify/functions/public-config");
+  var res = await fetch("/api/public-config");
   var d = await res.json();
   if (!res.ok) throw new Error(d.error || "Config fout");
   PUBLIC_CONFIG = d;
@@ -870,7 +870,7 @@ function App() {
     var s = sv||stravaT; if (!s) return;
     setSyncing(true);
     setStrErr("");
-    authedFetch("/.netlify/functions/strava-activities", {
+    authedFetch("/api/strava-activities", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({
@@ -915,7 +915,7 @@ function App() {
     if (!code) return;
     setConnecting(true);
     setStrErr("");
-    authedFetch("/.netlify/functions/strava-token", {
+    authedFetch("/api/strava-token", {
       method:"POST",
       headers:{"Content-Type":"application/json"},
       body:JSON.stringify({

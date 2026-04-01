@@ -172,3 +172,23 @@ Beschikbare plannen in de app:
 
 De onboarding toont nu alleen afstanden waarvoor een plan beschikbaar is.
 De 21 km- en 42 km-plannen zijn toegevoegd op basis van de aangeleverde schema's.
+
+
+## Vercel-ready versie
+Deze build gebruikt nu Vercel API routes:
+- `/api/claude`
+- `/api/public-config`
+- `/api/strava-token`
+- `/api/strava-activities`
+
+### Nog doen in Firebase
+Voeg je Vercel-domein toe in:
+- Firebase Authentication -> Settings -> Authorized domains
+
+Voorbeeld:
+- `jouw-project.vercel.app`
+
+### Belangrijke noot
+De AI-limiet draait in deze Vercel-versie als een best-effort memory limiter.
+Dat voorkomt eenvoudige spam, maar is niet zo hard als de Netlify blobs-versie.
+Voor een echte harde limiet heb je later een persistente store nodig.
