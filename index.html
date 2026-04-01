@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="Ultra Trainer"/>
+<title>80km Ultra Trainer — Wim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html{-webkit-text-size-adjust:100%;}
+body{
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:#f8fafc;
+  color:#0f172a;
+  letter-spacing:-0.01em;
+}
+input,button,select{font-family:inherit;}
+button{letter-spacing:-0.01em}
+a{color:inherit}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script>
+firebase.initializeApp({
+  apiKey:"AIzaSyCSinPF-k8jGqqdGqCmuv4PiCo4gUHpVH8",
+  authDomain:"ultra-trail-training-app.firebaseapp.com",
+  projectId:"ultra-trail-training-app",
+  storageBucket:"ultra-trail-training-app.firebasestorage.app",
+  messagingSenderId:"629667176355",
+  appId:"1:629667176355:web:a55191800cfbd133bd8416"
+});
+var fbAuth = firebase.auth();
+var gProvider = new firebase.auth.GoogleAuthProvider();
+var db = firebase.firestore();
+
+async function ensureUserProfile(user) {
+  if (!user) return null;
+  var ref = db.collection("users").doc(user.uid);
+  var snap = await ref.get();
+  var now = new Date().toISOString();
+  if (!snap.exists) {
+    var data = {
+      displayName: user.displayName || "",
+      email: user.email || "",
+      photoURL: user.photoURL || "",
+      startDate: "",
+      goalDistance: "80 km ultra",
+      experienceLevel: "",
+      preferredDays: "",
+      notes: "",
+      onboardingDone: false,
+      stravaConnected: false,
+      createdAt: now,
+      updatedAt: now
+    };
+    await ref.set(data, {merge:true});
+    return data;
+  }
+  return snap.data();
+}
+
+async function loadUserProfile(uid) {
+  if (!uid) return null;
+  var snap = await db.collection("users").doc(uid).get();
+  return snap.exists ? snap.data() : null;
+}
+
+async function saveUserProfile(uid, patch) {
+  if (!uid) throw new Error("Geen gebruiker");
+  var clean = Object.assign({}, patch, {updatedAt: new Date().toISOString()});
+  await db.collection("users").doc(uid).set(clean, {merge:true});
+}
+
+async function loadActivityFeedbackMap(uid) {
+  if (!uid) return {};
+  var snap = await db.collection("users").doc(uid).collection("activity_feedback").get();
+  var map = {};
+  snap.forEach(function(doc){ map[doc.id] = doc.data(); });
+  return map;
+}
+
+async function saveActivityFeedback(uid, activityId, payload) {
+  if (!uid || !activityId) throw new Error("Feedback opslaan lukt niet");
+  await db.collection("users").doc(uid).collection("activity_feedback").doc(String(activityId)).set(
+    Object.assign({}, payload, {updatedAt:new Date().toISOString()}),
+    {merge:true}
+  );
+}
+
+async function loadTrainingAdjustment(uid) {
+  if (!uid) return null;
+  var snap = await db.collection("users").doc(uid).collection("coach_state").doc("next_training").get();
+  return snap.exists ? snap.data() : null;
+}
+
+async function saveTrainingAdjustment(uid, payload) {
+  if (!uid) throw new Error("Aanpassing opslaan lukt niet");
+  await db.collection("users").doc(uid).collection("coach_state").doc("next_training").set(
+    Object.assign({}, payload, {updatedAt:new Date().toISOString()}),
+    {merge:true}
+  );
+}
+
+async function clearTrainingAdjustment(uid) {
+  if (!uid) return;
+  await db.collection("users").doc(uid).collection("coach_state").doc("next_training").delete().catch(function(){});
+}
+
+function niceAuthError(msg) {
+  if (!msg) return "Dat ging mis. Probeer opnieuw.";
+  if (msg.indexOf("auth/email-already-in-use") > -1) return "Dit e-mailadres bestaat al.";
+  if (msg.indexOf("auth/invalid-email") > -1) return "Dat e-mailadres klopt niet.";
+  if (msg.indexOf("auth/weak-password") > -1) return "Kies een sterker wachtwoord.";
+  if (msg.indexOf("auth/wrong-password") > -1) return "Wachtwoord klopt niet.";
+  if (msg.indexOf("auth/user-not-found") > -1) return "Geen account gevonden.";
+  if (msg.indexOf("auth/popup-closed-by-user") > -1) return "Inloggen is afgebroken.";
+  if (msg.indexOf("auth/network-request-failed") > -1) return "Geen internet. Check je verbinding.";
+  return "Dat ging mis. Probeer opnieuw.";
+}
+
+var PUBLIC_CONFIG = { stravaClientId: "" };
+var CONFIG_LOAD_ERROR = "";
+
+var PLANS = {
+  "80 km ultra": [
+    "Rust","35 min. rustig","9-12 km rustig","Kracht","60 min. rustig, waarin 10 min. tempo","Rust","12 km met het lange duurlooptempo",
+    "Rust","35 min. rustig","15 min. rustig, dan 10 x 2 min. snel met steeds 1 min. rustig, dan 15 min. rustig","1,5 km rustig, dan 9 km met het lange duurlooptempo, dan 1,5 km rustig","Kracht","Rust","1,5 km rustig, dan 12 km met het lange duurlooptempo, dan 1,5 km rustig",
+    "Rust","60 min. rustig","15 min. rustig, dan 7 x 1 min. snel met steeds 75 sec. rustig, dan 15 min. rustig","Kracht","5 min. rustig, dan 35 min. met het lange duurlooptempo, dan 5 min. rustig","Rust","19 km met het lange duurlooptempo",
+    "Rust","35 min. tempo","10 min. rustig, dan 15 min. tempo, dan 3 min. rustig, dan 25 min. in het lange duurlooptempo, dan 10 min. rustig","Kracht","9 km met het lange duurlooptempo","Rust","1 km rustig, dan 22 km waarin de snelheid langzaam oploopt tot het lange duurlooptempo, dan 1 km rustig",
+    "Rust","Ochtend 35 min. rustig, middag 35 min. tempo","15 min. rustig, dan 5 x 5 min. snel met steeds 90 sec. rustig, dan 10 min. rustig","60 min. rustig","Kracht","Rust","Halve marathon of 21 km testloop, tussen het lange duurlooptempo en de tempoloop in",
+    "Rust","35 min. rustig","15 min. rustig, dan 1+3+5+5+3+1 snel met steeds 1 min. rustig, dan 15 min. rustig","Kracht","35 min. rustig","Rust","29 km met het lange duurlooptempo",
+    "Rust","Kracht","60 min. rustig","10 min. rustig, dan 6 x 2 min. snel met steeds 1 min. rustig, dan 3 min. rustig, dan 10 min. tempo, dan 10 min. rustig","35 min. rustig","Rust","46 km met het lange duurlooptempo",
+    "35 min. rustig","10 min. rustig, dan 11 km met het lange duurlooptempo, dan 10 min. rustig","Rust","10 min. rustig, dan 4 x (8 min. tempo, met 3 min. rustig), dan 10 min. rustig","Kracht","Rust","35 km met het lange duurlooptempo",
+    "Rust","45 min. rustig","10 min. rustig, dan 3 x (1,5 km tempo met steeds 2 min. rustig), dan 10 min. rustig","Kracht","40 min. rustig","Rust","Halve marathon wedstrijd! Ga voor een snelle tijd",
+    "Rust","45 min. rustig","10 min. rustig, dan 7 x 1,5 km iets sneller dan het lange duurlooptempo met steeds 2 min. rustig, dan 10 min. rustig","Kracht","75 min. rustig","Rust","8 km rustig, dan 16 km waarin de snelheid langzaam oploopt tot marathontempo, dan 8 km rustig",
+    "Rust","Ochtend 35 min. rustig, middag 35 min. tempo","15 min. rustig, dan 30 min. tempo, dan 5 min. rustig, dan 20 min. tempo, dan 10 min. rustig","Rust","Kracht","5 km wedstrijd! Ga voor snelle tijd, dan 20-25 min. coolingdown","Loop 3:30 met het lange duurlooptempo, oefen met voeding en water",
+    "Rust","Rust","50 min. rustig","35 min. rustig","Kracht","19 km rustig","19 km heuvelachtig met het lange duurlooptempo",
+    "Rust","80 min. rustig","80 min. met het lange duurlooptempo","Rust","Kracht","24 km met het lange duurlooptempo, inclusief heuvels - oefen het eten","24 km met het lange duurlooptempo, vlak parcours",
+    "Rust","Kracht","90 min. met het lange duurlooptempo (tank goed bij - er komt een zwaar weekend aan)","Rust","Rust","16 km rustig, inclusief heuvels - herstel en tank bij","51 km rustig - vergeet niet te eten, wandel als dat nodig is",
+    "Rust en rekken","Rust en rekken. Eet en drink goed","6 km rustig","12 km rustig, door de heuvels","Rust en rekken. Eet en drink goed","Kracht","16 km rustig, door de heuvels",
+    "Rust en rekken. Eet en drink goed","Rust en rekken. Eet en drink goed","Rust en rekken. Eet en drink goed","10 min. wandelen of dribbelen","Rust en rekken. Eet en drink goed","Rust en rekken. Eet en drink goed","ULTRA MARATHON RACE - Geniet ervan!"
+  ],
+  "21 km": [
+    "DL 60 min","SDL 65 min, netto 50 min","LLD 70 min",
+    "DL 65 min","IV 5 x 6 min tempo, 2 min rustig","LLD 75 min",
+    "DL 70 min","SDL 70 min, netto 55 min","LLD 80 min",
+    "DL 40 min","IV 15 x 1 min tempo, 1 min rustig","DL 40 min",
+    "DL 70 min","SDL 75 min, netto 60 min","LLD 85 min",
+    "DL 75 min","IV 9 x 4 min tempo, 2 min rustig","LLD 90 min",
+    "DL 80 min","SDL 80 min, netto 65 min","LLD 100 min",
+    "DL 45 min","IV 10 x 2 min tempo, 1 min rustig","DL 45 min",
+    "DL 80 min","SDL 85 min, netto 70 min","LLD 105 min",
+    "DL 85 min","IV 8 x 5 min tempo, 2 min rustig","LLD 110 min",
+    "DL 90 min","SDL 90 min, netto 75 min","LLD 120 min",
+    "DL 70 min","IV 6 x 3 min tempo, 1 min rustig","DL 50 min",
+    "DL 45 min","DL 40 min","Halve marathon"
+  ],
+  "42 km": [
+    "DL 70 min","SDL 75 min, netto 60 min","LLD 21 km",
+    "DL 75 min","IV 9 x 4 min tempo, 2 min rustig","LLD 23 km",
+    "DL 80 min","SDL 80 min, netto 65 min","LLD 25 km",
+    "DL 50 min","IV 15 x 1 min tempo, 1 min rustig","DL 50 min",
+    "DL 85 min","SDL 85 min, netto 70 min","LLD 26 km",
+    "DL 80 min","IV 5 x 9 min tempo, 2 min rustig","LLD 28 km",
+    "DL 95 min","SDL 90 min, netto 75 min","LLD 30 km of max. 3 uur",
+    "DL 60 min","IV 10 x 2 min tempo, 1 min rustig","DL 60 min",
+    "DL 90 min","SDL 95 min, netto 80 min","LLD 30 km of max. 3,25 uur",
+    "DL 105 min","IV 10 x 5 min tempo, 2 min rustig","LLD 32 km of max. 3,5 uur",
+    "DL 80 min","SDL 85 min, netto 70 min","LLD 18 km",
+    "DL 75 min","IV 8 x 3 min tempo, 1 min rustig","DL 65 min",
+    "DL 45 min","DL 40 min","Marathon"
+  ]
+};
+
+function getPlanName(goal) {
+  if (goal==="21 km" || goal==="42 km" || goal==="80 km ultra") return goal;
+  if (goal==="21 km half marathon") return "21 km";
+  if (goal==="42 km marathon") return "42 km";
+  return "80 km ultra";
+}
+function currentPlan(profile) {
+  return PLANS[getPlanName(profile && profile.goalDistance)] || PLANS["80 km ultra"];
+}
+function currentPlanMeta(profile) {
+  var name = getPlanName(profile && profile.goalDistance);
+  var plan = PLANS[name] || PLANS["80 km ultra"];
+  return {name:name, plan:plan, weeks:Math.ceil(plan.length/3)};
+}
+
+var DAYS = ["Ma","Di","Wo","Do","Vr","Za","Zo"];
+var FULL_DAYS = ["Maandag","Dinsdag","Woensdag","Donderdag","Vrijdag","Zaterdag","Zondag"];
+var PACES = {rustig:"5:30 /km", tempo:"5:10 /km", snel:"4:50 /km"};
+
+function isRest(t) {
+  return !t || t==="Rust" || t.startsWith("Rust en rekken") || t==="Kracht";
+}
+function localDate(s) {
+  var p = s.split("-"); return new Date(+p[0], +p[1]-1, +p[2]);
+}
+function daysFrom(sd) {
+  if (!sd) return 0;
+  var t = new Date(); t.setHours(0,0,0,0);
+  return Math.floor((t - localDate(sd)) / 86400000);
+}
+function lsGet(k) { try { return localStorage.getItem(k); } catch(e) { return null; } }
+function lsSet(k,v) { try { localStorage.setItem(k,v); } catch(e) {} }
+function byActivityDateDesc(a,b) {
+  return new Date(b.start_date).getTime() - new Date(a.start_date).getTime();
+}
+function sortedActivities(arr) {
+  return (arr||[]).slice().sort(byActivityDateDesc);
+}
+
+function feelingMeta(key) {
+  var map = {
+    very_hard:{label:"Heel zwaar",emoji:"😮‍💨",accent:"#b91c1c",bg:"#fef2f2"},
+    hard:{label:"Moeilijk",emoji:"😓",accent:"#c2410c",bg:"#fff7ed"},
+    okay:{label:"Oké",emoji:"🙂",accent:"#475569",bg:"#f8fafc"},
+    good:{label:"Vlot",emoji:"😊",accent:"#15803d",bg:"#f0fdf4"},
+    great:{label:"Heel vlot",emoji:"🚀",accent:"#166534",bg:"#ecfdf5"}
+  };
+  return map[key] || map.okay;
+}
+function isHardFeeling(key) {
+  return key==="hard" || key==="very_hard";
+}
+function lsRemove(k) { try { localStorage.removeItem(k); } catch(e) {} }
+
+function computeState(sd, acts, plan) {
+  if (!sd) return null;
+  var start = localDate(sd);
+  var today = new Date(); today.setHours(0,0,0,0);
+  var actSet = {};
+  acts.forEach(function(a){ actSet[(a.start_date||"").slice(0,10)] = true; });
+  var pi = 0, missedYest = null, cmap = [];
+  var cur = new Date(start);
+  while (cur <= today && pi < plan.length) {
+    var y = cur.getFullYear(), mo = String(cur.getMonth()+1).padStart(2,'0'), d = String(cur.getDate()).padStart(2,'0');
+    var ds = y+"-"+mo+"-"+d;
+    var t = plan[pi], isPast = new Date(cur) < today;
+    var missed = isPast && !isRest(t) && !actSet[ds];
+    var off = Math.floor((new Date(cur)-start)/86400000);
+    cmap.push({date:ds, planIdx:pi, training:t, missed:missed, dayOffset:off});
+    if (!missed) pi++;
+    var yest = new Date(today); yest.setDate(today.getDate()-1);
+    var yd = yest.getFullYear()+"-"+String(yest.getMonth()+1).padStart(2,'0')+"-"+String(yest.getDate()).padStart(2,'0');
+    if (ds===yd && missed) missedYest = {date:ds, training:t};
+    cur.setDate(cur.getDate()+1);
+  }
+  return {planIdx: Math.min(pi, plan.length-1), missedYest:missedYest, cmap:cmap};
+}
+
+function buildStrip(sd, el, cmap, pi, plan) {
+  if (!sd) return [];
+  plan = plan || [];
+  var start = localDate(sd);
+  var sdow = start.getDay()===0 ? 6 : start.getDay()-1;
+  var ws = Math.floor(el/7)*7, pm = {};
+  (cmap||[]).forEach(function(e){ pm[e.dayOffset]=e.training; });
+  return Array.from({length:7}, function(_,i) {
+    var off = ws+i, t;
+    if (off < el) t = pm[off]||"Rust";
+    else if (off === el) t = (plan && plan[pi]!==undefined) ? plan[pi] : "Rust";
+    else t = (plan && plan[pi+(off-el)]!==undefined) ? plan[pi+(off-el)] : "Rust";
+    return {training:t, dayLabel:DAYS[(sdow+off)%7], isToday:off===el};
+  });
+}
+
+function getTag(s) {
+  if (!s||s==="Rust") return {label:"Rust",color:"#e5e7eb",text:"#6b7280"};
+  if (s.startsWith("Rust en rekken")) return {label:"Herstel",color:"#e2e8f0",text:"#64748b"};
+  if (s.includes("Kracht")) return {label:"Kracht",color:"#fef3c7",text:"#92400e"};
+  if (s.includes("wedstrijd")||s.includes("ULTRA")) return {label:"Wedstrijd",color:"#fce7f3",text:"#9d174d"};
+  if (s.includes("lange duurloop")) return {label:"Lopen",color:"#dbeafe",text:"#1d4ed8"};
+  if (s.includes("tempo")) return {label:"Lopen",color:"#dbeafe",text:"#1d4ed8"};
+  if (s.includes("snel")) return {label:"Lopen",color:"#dbeafe",text:"#1d4ed8"};
+  if (s.includes("rustig")) return {label:"Lopen",color:"#dbeafe",text:"#1d4ed8"};
+  if (s.includes("DL") || s.includes("SDL") || s.includes("LLD") || s.includes("IV") || s.includes("marathon") || s.includes("Halve marathon")) return {label:"Lopen",color:"#dbeafe",text:"#1d4ed8"};
+  return {label:"Training",color:"#f3f4f6",text:"#374151"};
+}
+
+function getPace(t) {
+  if (!t) return null;
+  var h = [];
+  if (t.includes("lange duurloop")||(t.includes("rustig")&&!t.includes("tempo")&&!t.includes("snel"))) h.push({label:"Rustig",pace:PACES.rustig,color:"#166534"});
+  if (t.includes("tempo")) h.push({label:"Tempo",pace:PACES.tempo,color:"#1e40af"});
+  if (t.includes("snel")) h.push({label:"Snel",pace:PACES.snel,color:"#7c3aed"});
+  return h.length ? h : null;
+}
+
+function getNutr(t) {
+  if (!t) return null;
+  var ii = t.includes("snel")||t.includes("tempo")||t.includes("lange duurloop")||t.includes("wedstrijd")||t.includes("ULTRA")||t.includes("marathon")||t.includes("km met het");
+  var ik = t.includes("Kracht"), ir = t==="Rust", ih = t.startsWith("Rust en rekken");
+  if (ii) return {emoji:"🥗",type:"Fuel day",color:"#fff7ed",border:"#fed7aa",accent:"#ea580c",carbs:"Hoog",eiwit:"Medium",vet:"Laag",cc:"#ef4444",ec:"#f59e0b",vc:"#6b7280",voor:"Havermout + banaan + honing / wit brood + confituur",na:"Chocolademelk, yoghurt + granola of recovery shake (binnen 1u!)",dag:"Rijst, pasta of aardappelen + kip of vis",tip:"Tank goed bij - je glycogeen moet VOL zitten! Goed lopen!"};
+  if (ik) return {emoji:"🥑",type:"Build day",color:"#fefce8",border:"#fde68a",accent:"#d97706",carbs:"Medium",eiwit:"Hoog",vet:"Medium",cc:"#f59e0b",ec:"#ef4444",vc:"#f59e0b",voor:"Banaan + yoghurt of kleine carb-snack",na:"Kip + rijst of omelet + brood",dag:"Eieren, kwark, kip, vis of peulvruchten",tip:"Focus op eiwit - je spieren worden vandaag gebouwd."};
+  if (ir) return {emoji:"🍵",type:"Recovery",color:"#f0fdf4",border:"#bbf7d0",accent:"#16a34a",carbs:"Laag",eiwit:"Med-hoog",vet:"Iets hoger",cc:"#6b7280",ec:"#ef4444",vc:"#16a34a",voor:null,na:null,dag:"Groenten + eiwitrijke maaltijden, noten, avocado, olijfolie",tip:"Minder snelle suikers - herstel zonder overschot."};
+  if (ih) return {emoji:"🍎",type:"Hersteldag",color:"#eff6ff",border:"#bfdbfe",accent:"#2563eb",carbs:"Medium",eiwit:"Medium",vet:"Medium",cc:"#f59e0b",ec:"#f59e0b",vc:"#f59e0b",voor:null,na:null,dag:"Normale gebalanceerde maaltijden",tip:"Eet goed en drink voldoende."};
+  return {emoji:"🥣",type:"Maintenance",color:"#eff6ff",border:"#bfdbfe",accent:"#2563eb",carbs:"Medium",eiwit:"Medium",vet:"Medium",cc:"#f59e0b",ec:"#f59e0b",vc:"#f59e0b",voor:"Kleine carb-snack voor je loopt",na:"Kleine snack na training",dag:"Gebalanceerde maaltijden: carbs + eiwit + vet",tip:"Geen extremen vandaag - gewoon goed eten."};
+}
+
+function dayIcon(t) {
+  if (!t||t==="Rust"||t.startsWith("Rust")) return "💤";
+  if (t.includes("ULTRA")||t.includes("wedstrijd")) return "🏅";
+  if (t.includes("Kracht")) return "🏋️";
+  return "🏃";
+}
+
+async function authedFetch(url, options) {
+  options = options || {};
+  var user = fbAuth.currentUser;
+  if (!user) throw new Error("Niet ingelogd");
+  var idToken = await user.getIdToken();
+  var headers = Object.assign({}, options.headers || {}, {
+    "Authorization": "Bearer " + idToken
+  });
+  return fetch(url, Object.assign({}, options, { headers: headers }));
+}
+
+async function callClaude(prompt, maxTok) {
+  var res = await authedFetch("/.netlify/functions/claude", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      max_tokens: maxTok || 300,
+      messages: [{role: "user", content: prompt}]
+    })
+  });
+  var d = await res.json();
+  if (!res.ok) {
+    var extra = "";
+    if (d.remaining!==undefined && d.dailyLimit) extra = " (" + d.remaining + "/" + d.dailyLimit + " over)";
+    throw new Error((d.error || "AI fout") + extra + (d.requestId ? " [requestId: " + d.requestId + "]" : ""));
+  }
+  return {
+    text: (d.content && d.content[0] && d.content[0].text) || "",
+    usage: d.usage || null
+  };
+}
+
+async function loadPublicConfig() {
+  var res = await fetch("/.netlify/functions/public-config");
+  var d = await res.json();
+  if (!res.ok) throw new Error(d.error || "Config fout");
+  PUBLIC_CONFIG = d;
+  return d;
+}
+
+
+function startOfWeek(d) {
+  var x = new Date(d);
+  x.setHours(0,0,0,0);
+  var dow = x.getDay()===0 ? 7 : x.getDay();
+  x.setDate(x.getDate() - (dow-1));
+  return x;
+}
+function endOfWeek(d) {
+  var x = startOfWeek(d);
+  x.setDate(x.getDate()+6);
+  x.setHours(23,59,59,999);
+  return x;
+}
+function formatKm(v) {
+  return (Math.round(v*10)/10).toFixed(v>=100?0:1);
+}
+function sumDistanceKm(arr) {
+  return arr.reduce(function(s,a){ return s + ((a.distance||0)/1000); }, 0);
+}
+function sumHours(arr) {
+  return arr.reduce(function(s,a){ return s + (a.moving_time||0); }, 0) / 3600;
+}
+function bucketActivities(activities, period) {
+  var ordered = sortedActivities(activities).slice().reverse();
+  var now = new Date();
+  var buckets = [];
+  var start, end, labelFn, compareFn;
+  if (period==="week") {
+    start = startOfWeek(now);
+    end = new Date(now);
+    end.setHours(23,59,59,999);
+    var todayDow = now.getDay()===0 ? 7 : now.getDay();
+    for (var i=0;i<todayDow;i++) {
+      var d = new Date(start); d.setDate(start.getDate()+i);
+      buckets.push({key:i,label:["Ma","Di","Wo","Do","Vr","Za","Zo"][i],value:0,date:new Date(d)});
+    }
+    compareFn = function(aDate, bucket){ return aDate.toDateString()===bucket.date.toDateString(); };
+  } else if (period==="month") {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+    end = new Date(now);
+    end.setHours(23,59,59,999);
+    for (var d=1; d<=now.getDate(); d++) {
+      buckets.push({key:d,label:String(d),value:0,date:new Date(now.getFullYear(), now.getMonth(), d)});
+    }
+    compareFn = function(aDate, bucket){ return aDate.getFullYear()===bucket.date.getFullYear() && aDate.getMonth()===bucket.date.getMonth() && aDate.getDate()===bucket.date.getDate(); };
+  } else {
+    start = new Date(now.getFullYear(), 0, 1);
+    end = new Date(now);
+    end.setHours(23,59,59,999);
+    for (var m=0; m<=now.getMonth(); m++) {
+      buckets.push({key:m,label:["Jan","Feb","Mrt","Apr","Mei","Jun","Jul","Aug","Sep","Okt","Nov","Dec"][m],value:0,date:new Date(now.getFullYear(), m, 1)});
+    }
+    compareFn = function(aDate, bucket){ return aDate.getFullYear()===bucket.date.getFullYear() && aDate.getMonth()===bucket.date.getMonth(); };
+  }
+  var currentActs = ordered.filter(function(a){
+    var d = new Date(a.start_date);
+    return d>=start && d<=end;
+  });
+  currentActs.forEach(function(a){
+    var d = new Date(a.start_date);
+    for (var i=0;i<buckets.length;i++) {
+      if (compareFn(d, buckets[i])) {
+        buckets[i].value += ((a.distance||0)/1000);
+        break;
+      }
+    }
+  });
+  return {buckets:buckets, currentActs:currentActs, start:start, end:end};
+}
+function comparePeriodActivities(activities, period) {
+  var now = new Date();
+  var curStart, curEnd, prevStart, prevEnd;
+  if (period==="week") {
+    curStart = startOfWeek(now); curEnd = endOfWeek(now);
+    prevStart = new Date(curStart); prevStart.setDate(curStart.getDate()-7);
+    prevEnd = new Date(curEnd); prevEnd.setDate(curEnd.getDate()-7);
+  } else if (period==="month") {
+    curStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    curEnd = new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59,999);
+    prevStart = new Date(now.getFullYear(), now.getMonth()-1, 1);
+    prevEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23,59,59,999);
+  } else {
+    curStart = new Date(now.getFullYear(), 0, 1);
+    curEnd = new Date(now.getFullYear(), 11, 31, 23,59,59,999);
+    prevStart = new Date(now.getFullYear()-1, 0, 1);
+    prevEnd = new Date(now.getFullYear()-1, 11, 31, 23,59,59,999);
+  }
+  function between(a, s, e) {
+    var d = new Date(a.start_date);
+    return d>=s && d<=e;
+  }
+  return {
+    current: activities.filter(function(a){ return between(a, curStart, curEnd); }),
+    previous: activities.filter(function(a){ return between(a, prevStart, prevEnd); })
+  };
+}
+function pctDelta(curr, prev) {
+  if (!prev && curr) return null;
+  if (!prev) return 0;
+  return Math.round(((curr-prev)/prev)*100);
+}
+var h = React.createElement;
+var useState = React.useState;
+var useEffect = React.useEffect;
+
+function LoginScreen() {
+  var s = useState(false), loading = s[0], setLoading = s[1];
+  var e = useState(""), err = e[0], setErr = e[1];
+  var ms = useState("login"), mode = ms[0], setMode = ms[1];
+  var ems = useState(""), email = ems[0], setEmail = ems[1];
+  var pws = useState(""), password = pws[0], setPassword = pws[1];
+  var nms = useState(""), name = nms[0], setName = nms[1];
+
+  function loginGoogle() {
+    setLoading(true); setErr("");
+    fbAuth.signInWithPopup(gProvider).catch(function(ex){ setErr(niceAuthError(ex && ex.message)); setLoading(false); });
+  }
+
+  function loginEmail() {
+    setLoading(true); setErr("");
+    fbAuth.signInWithEmailAndPassword(email.trim(), password)
+      .catch(function(ex){ setErr(niceAuthError(ex && ex.message)); setLoading(false); });
+  }
+
+  function signupEmail() {
+    setLoading(true); setErr("");
+    fbAuth.createUserWithEmailAndPassword(email.trim(), password)
+      .then(function(cred){
+        return Promise.resolve().then(function(){
+          if (name.trim()) return cred.user.updateProfile({displayName:name.trim()});
+        });
+      })
+      .catch(function(ex){ setErr(niceAuthError(ex && ex.message)); setLoading(false); });
+  }
+
+  return h("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",padding:24}},
+    h("div",{style:{width:"100%",maxWidth:360,background:"white",border:"1px solid #e2e8f0",borderRadius:20,padding:22,boxShadow:"0 20px 40px rgba(15,23,42,0.06)"}},
+      h("div",{style:{fontSize:44,marginBottom:12,textAlign:"center"}},"🏃"),
+      h("h1",{style:{fontSize:28,fontWeight:800,marginBottom:6,letterSpacing:"-0.03em",textAlign:"center"}},"Ultra Trainer"),
+      h("p",{style:{fontSize:14,color:"#64748b",marginBottom:20,textAlign:"center",lineHeight:1.6}},"Log in en hou je schema, profiel en coach bij."),
+      h("div",{style:{display:"flex",gap:8,marginBottom:14}},
+        ["login","signup"].map(function(m){
+          var active = mode===m;
+          return h("button",{key:m,onClick:function(){setMode(m);setErr("");},style:{flex:1,padding:"10px 12px",borderRadius:12,border:"1px solid "+(active?"#ea580c":"#e2e8f0"),background:active?"#fff7ed":"white",color:active?"#c2410c":"#475569",fontWeight:700,cursor:"pointer",boxShadow:"none"}},m==="login"?"Log in":"Maak account");
+        })
+      ),
+      mode==="signup" && h("div",{style:{marginBottom:10}},
+        h("label",{style:{display:"block",fontSize:12,fontWeight:600,color:"#475569",marginBottom:6}},"Naam"),
+        h("input",{value:name,onChange:function(ev){setName(ev.target.value);},placeholder:"Je naam",style:{width:"100%",padding:"12px 13px",borderRadius:12,border:"1px solid #cbd5e1",fontSize:14}})
+      ),
+      h("div",{style:{marginBottom:10}},
+        h("label",{style:{display:"block",fontSize:12,fontWeight:600,color:"#475569",marginBottom:6}},"E-mail"),
+        h("input",{type:"email",value:email,onChange:function(ev){setEmail(ev.target.value);},placeholder:"jij@mail.com",style:{width:"100%",padding:"12px 13px",borderRadius:12,border:"1px solid #cbd5e1",fontSize:14}})
+      ),
+      h("div",{style:{marginBottom:14}},
+        h("label",{style:{display:"block",fontSize:12,fontWeight:600,color:"#475569",marginBottom:6}},"Wachtwoord"),
+        h("input",{type:"password",value:password,onChange:function(ev){setPassword(ev.target.value);},placeholder:"Minstens 6 tekens",style:{width:"100%",padding:"12px 13px",borderRadius:12,border:"1px solid #cbd5e1",fontSize:14}})
+      ),
+      h("button",{onClick:mode==="login"?loginEmail:signupEmail,disabled:loading || !email || !password || (mode==="signup" && !name.trim()),style:{width:"100%",padding:"12px 14px",borderRadius:12,border:"none",background:"#ea580c",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 10px 24px rgba(234,88,12,0.18)",marginBottom:10}},
+        loading ? "Even bezig..." : (mode==="login" ? "Log in met e-mail" : "Maak account")
+      ),
+      h("button",{onClick:loginGoogle,disabled:loading,style:{display:"flex",alignItems:"center",gap:10,width:"100%",padding:"12px 14px",borderRadius:12,border:"1px solid #e2e8f0",background:"white",fontSize:14,fontWeight:700,cursor:"pointer",justifyContent:"center"}},
+        h("span",{style:{fontSize:18}},"G"),
+        loading ? "Even bezig..." : "Ga verder met Google"
+      ),
+      err && h("div",{style:{color:"#dc2626",fontSize:12,marginTop:12,lineHeight:1.5}},err)
+    )
+  );
+}
+
+function WeekStrip(props) {
+  var todayWeek = props.todayWeek, data = props.data;
+  var ss = useState(null), sel = ss[0], setSel = ss[1];
+  var s = sel!==null ? data[sel] : null;
+  var st = s ? getTag(s.training) : null;
+  var sp = s ? getPace(s.training) : null;
+  return h("div",{style:{marginBottom:16}},
+    h("div",{style:{fontSize:11,fontWeight:700,color:"#888",letterSpacing:1,marginBottom:8}},"WEEK "+(todayWeek+1)+" — OVERZICHT"),
+    h("div",{style:{display:"flex",gap:6,alignItems:"flex-start"}},
+      data.map(function(item,i) {
+        var tg = getTag(item.training), isSel = sel===i;
+        return h("div",{key:i,onClick:function(){setSel(isSel?null:i);},style:{flex:1,textAlign:"center",padding:"6px 2px",borderRadius:8,cursor:"pointer",background:isSel?"#ea580c":item.isToday?"#fff7ed":tg.color,border:isSel?"2px solid #c2410c":item.isToday?"2px solid #ea580c":"1px solid transparent",fontSize:9}},
+          h("div",{style:{fontWeight:item.isToday||isSel?700:400,color:isSel?"white":item.isToday?"#ea580c":"#555"}},item.dayLabel),
+          h("div",{style:{fontSize:22,lineHeight:1,marginTop:1}},dayIcon(item.training))
+        );
+      })
+    ),
+    s && h("div",{style:{marginTop:10,background:"white",border:"1px solid "+st.color,borderLeft:"3px solid "+st.text,borderRadius:10,padding:"12px 14px"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:6}},
+          h("span",{style:{fontSize:16}},dayIcon(s.training)),
+          h("div",null,
+            h("div",{style:{fontWeight:700,fontSize:13}},s.dayLabel+(s.isToday?" — vandaag":"")),
+            h("span",{style:{fontSize:10,background:st.color,color:st.text,padding:"1px 7px",borderRadius:20,fontWeight:600}},st.label)
+          )
+        ),
+        h("button",{onClick:function(){setSel(null);},style:{border:"none",background:"none",fontSize:20,cursor:"pointer",color:"#aaa"}},"x")
+      ),
+      h("div",{style:{fontSize:13,color:"#333",lineHeight:1.5}},s.training),
+      sp && h("div",{style:{display:"flex",gap:6,flexWrap:"wrap",marginTop:6}},
+        sp.map(function(hp){ return h("span",{key:hp.label,style:{fontSize:11,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:20,padding:"2px 10px",color:hp.color,fontWeight:600}},hp.label+": "+hp.pace); })
+      )
+    )
+  );
+}
+
+function App() {
+  var us = useState(null), user = us[0], setUser = us[1];
+  var als = useState(true), authLoad = als[0], setAuthLoad = als[1];
+  var ts = useState("dashboard"), tab = ts[0], setTab = ts[1];
+  var sds = useState(null), startDate = sds[0], setStartDate = sds[1];
+  var acs = useState([]), activities = acs[0], setActivities = acs[1];
+  var sts = useState(null), stravaT = sts[0], setStravaT = sts[1];
+  var ais = useState(""), aiMsg = ais[0], setAiMsg = ais[1];
+  var ams = useState(null), aiMeta = ams[0], setAiMeta = ams[1];
+  var ails = useState(false), aiLoad = ails[0], setAiLoad = ails[1];
+  var syns = useState(false), syncing = syns[0], setSyncing = syns[1];
+  var cons = useState(false), connecting = cons[0], setConnecting = cons[1];
+  var ses = useState(""), strErr = ses[0], setStrErr = ses[1];
+  var cfs = useState(null), cfg = cfs[0], setCfg = cfs[1];
+  var pfs = useState({displayName:"",email:"",photoURL:"",startDate:"",goalDistance:"80 km ultra",experienceLevel:"",preferredDays:"",notes:"",onboardingDone:false,stravaConnected:false}), profile = pfs[0], setProfile = pfs[1];
+  var pls = useState(true), profileLoad = pls[0], setProfileLoad = pls[1];
+  var pss = useState(false), profileSaving = pss[0], setProfileSaving = pss[1];
+  var pes = useState(""), profileErr = pes[0], setProfileErr = pes[1];
+  var oss = useState(0), onboardingStep = oss[0], setOnboardingStep = oss[1];
+  var ocs = useState(false), onboardingComplete = ocs[0], setOnboardingComplete = ocs[1];
+  var mns = useState(false), menuOpen = mns[0], setMenuOpen = mns[1];
+  var fms = useState({}), feedbackMap = fms[0], setFeedbackMap = fms[1];
+  var fls = useState(true), feedbackLoad = fls[0], setFeedbackLoad = fls[1];
+  var fas = useState(null), feedbackActivity = fas[0], setFeedbackActivity = fas[1];
+  var fss = useState(0), feedbackStep = fss[0], setFeedbackStep = fss[1];
+  var fcs = useState(""), feedbackChoice = fcs[0], setFeedbackChoice = fcs[1];
+  var fbs = useState(false), feedbackBusy = fbs[0], setFeedbackBusy = fbs[1];
+  var frs = useState(""), feedbackReply = frs[0], setFeedbackReply = frs[1];
+  var tes = useState(null), trainingAdjustment = tes[0], setTrainingAdjustment = tes[1];
+
+  useEffect(function() {
+    loadPublicConfig().then(setCfg).catch(function(e){
+      CONFIG_LOAD_ERROR = e.message || "Config laden mislukt";
+      setCfg({stravaClientId:""});
+    });
+  }, []);
+
+  useEffect(function() {
+    var t = setTimeout(function(){ setAuthLoad(false); }, 8000);
+    var unsub = fbAuth.onAuthStateChanged(function(u) {
+      clearTimeout(t); setUser(u); setAuthLoad(false);
+      if (u) {
+        var sd = lsGet("sd_"+u.uid); if (sd) setStartDate(sd);
+        var st = lsGet("st_"+u.uid); if (st) try { setStravaT(JSON.parse(st)); setProfile(function(prev){ return Object.assign({}, prev, {stravaConnected:true}); }); } catch(e){}
+        var ac = lsGet("ac_"+u.uid); if (ac) try { setActivities(sortedActivities(JSON.parse(ac))); } catch(e){}
+        setProfileLoad(true);
+        setFeedbackLoad(true);
+        ensureUserProfile(u)
+          .then(function(data){
+            var merged = Object.assign({}, data || {}, {email:u.email||"", displayName:(u.displayName || (data&&data.displayName) || ""), photoURL:u.photoURL || "", stravaConnected: !!((data&&data.stravaConnected) || lsGet("st_"+u.uid))});
+            setProfile(function(prev){ return Object.assign({}, prev, merged); });
+            if (data && data.startDate) setStartDate(data.startDate);
+            setOnboardingStep((!data || !data.onboardingDone) ? 0 : -1);
+            setOnboardingComplete(false);
+            setProfileLoad(false);
+            return Promise.all([
+              loadActivityFeedbackMap(u.uid).catch(function(){ return {}; }),
+              loadTrainingAdjustment(u.uid).catch(function(){ return null; })
+            ]);
+          })
+          .then(function(res){
+            if (!res) return;
+            setFeedbackMap(res[0] || {});
+            setTrainingAdjustment(res[1] || null);
+            setFeedbackLoad(false);
+          })
+          .catch(function(err){
+            console.error("Profile load error:", err);
+            setProfileErr("Profiel laden lukt niet.");
+            setProfileLoad(false);
+            setFeedbackLoad(false);
+          });
+      } else {
+        setProfile({displayName:"",email:"",photoURL:"",startDate:"",goalDistance:"80 km ultra",experienceLevel:"",preferredDays:"",notes:"",onboardingDone:false,stravaConnected:false});
+        setOnboardingStep(0);
+        setOnboardingComplete(false);
+        setStartDate(null);
+        setActivities([]);
+        setStravaT(null);
+        setFeedbackMap({});
+        setFeedbackActivity(null);
+        setFeedbackReply("");
+        setTrainingAdjustment(null);
+        setProfileLoad(false);
+        setFeedbackLoad(false);
+      }
+    });
+    return function(){ clearTimeout(t); unsub(); };
+  }, []);
+
+  useEffect(function() {
+    if (!user || !cfg) return;
+    var qp = new URLSearchParams(window.location.search);
+    var code = qp.get("code");
+    var scopeError = qp.get("error");
+    if (scopeError) {
+      setStrErr("Strava autorisatie geannuleerd.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+    if (code && !connecting) {
+      exchangeStravaCode(code);
+    }
+  }, [user, cfg]);
+
+  function updateProfileField(key, value) {
+    setProfile(function(prev){ return Object.assign({}, prev, {[key]: value}); });
+  }
+
+  function saveProfilePatch(patch) {
+    if (!user) return Promise.resolve();
+    setProfileSaving(true);
+    setProfileErr("");
+    var next = Object.assign({}, profile, patch, {
+      email: user.email || profile.email || "",
+      displayName: (patch && patch.displayName!==undefined ? patch.displayName : profile.displayName) || user.displayName || "",
+      photoURL: user.photoURL || profile.photoURL || ""
+    });
+    return saveUserProfile(user.uid, next)
+      .then(function(){
+        setProfile(next);
+        if (next.startDate) {
+          setStartDate(next.startDate);
+          lsSet("sd_"+user.uid, next.startDate);
+        }
+        setProfileSaving(false);
+      })
+      .catch(function(err){
+        console.error("Profile save error:", err);
+        setProfileErr("Opslaan lukt niet. Probeer opnieuw.");
+        setProfileSaving(false);
+      });
+  }
+
+
+  function latestHardStreak(nextMap) {
+    var count = 0;
+    sortedActivities(activities).forEach(function(a){
+      if (count >= 2) return;
+      var fb = nextMap[String(a.id)];
+      if (!fb || !fb.feeling) return;
+      if (isHardFeeling(fb.feeling) && count < 2) count += 1;
+      else if (count > 0) count = count;
+      else count = 0;
+      if (!isHardFeeling(fb.feeling) && count === 0) return;
+    });
+    var streak = 0;
+    for (var i=0;i<sortedActivities(activities).length;i++) {
+      var act = sortedActivities(activities)[i];
+      var f = nextMap[String(act.id)];
+      if (!f || !f.feeling) continue;
+      if (isHardFeeling(f.feeling)) streak += 1;
+      else break;
+      if (streak>=2) break;
+    }
+    return streak;
+  }
+
+  function detectPendingFeedback() {
+    if (!user || feedbackLoad || !activities.length) return;
+    var candidate = sortedActivities(activities).find(function(a){
+      if (!a || !a.id) return false;
+      if (feedbackMap[String(a.id)]) return false;
+      if (startDate && new Date(a.start_date).getTime() < localDate(startDate).getTime()) return false;
+      return true;
+    });
+    if (candidate) {
+      setFeedbackActivity(candidate);
+      setFeedbackStep(0);
+      setFeedbackChoice("");
+      setFeedbackReply("");
+    }
+  }
+
+  useEffect(function(){
+    detectPendingFeedback();
+  }, [user, feedbackLoad, activities.length, Object.keys(feedbackMap).length, startDate]);
+
+  useEffect(function(){
+    if (!user || !trainingAdjustment || !trainingAdjustment.active || !activities.length) return;
+    var latest = sortedActivities(activities)[0];
+    if (latest && trainingAdjustment.createdAt && new Date(latest.start_date).getTime() > new Date(trainingAdjustment.createdAt).getTime()) {
+      clearTrainingAdjustment(user.uid);
+      setTrainingAdjustment(null);
+    }
+  }, [user, trainingAdjustment, activities.length]);
+
+  function submitRunFeeling() {
+    if (!feedbackActivity || !feedbackChoice || !user) return;
+    setFeedbackBusy(true);
+    var meta = feelingMeta(feedbackChoice);
+    var act = feedbackActivity;
+    var distKm = ((act.distance||0)/1000).toFixed(1);
+    var pace = (act.distance && act.moving_time) ? formatDurationShort(act.moving_time / (act.distance/1000)) + "/km" : "onbekend";
+    var nextMap = Object.assign({}, feedbackMap, {});
+    var nextTrainingBase = (activePlan && activePlan.length) ? (activePlan[(state ? state.planIdx : pi)] || "Rust") : "Rust";
+    var latestTwoHard = latestHardStreak(nextMap);
+
+    var feedbackPrompt =
+      "Je bent Wims warme maar nuchtere coach. " +
+      "Hij heeft net een run gedaan en gaf zijn gevoel door als '" + meta.label + "'. " +
+      "Activiteit: " + (act.name||"Run") + ", datum " + act.start_date.slice(0,10) + ", afstand " + distKm + " km, tijd " + Math.round((act.moving_time||0)/60) + " min, pace " + pace + ". " +
+      "Volgende geplande training: " + nextTrainingBase + ". " +
+      "Geef eerst een korte oprechte waardering. Zeg daarna in 2 tot 4 zinnen wat dit waarschijnlijk betekent en wat hij nu best doet. " +
+      "Schrijf kort, menselijk en concreet. Geen lijstjes. Geen labels.";
+
+    callClaude(feedbackPrompt, 180)
+      .then(function(res){
+        var reply = (res.text || "Sterk gedaan. We nemen dit mee naar je volgende training.").trim();
+        var payload = {
+          activityId: String(act.id),
+          activityName: act.name || "Run",
+          activityDate: act.start_date || "",
+          distance: act.distance || 0,
+          movingTime: act.moving_time || 0,
+          feeling: feedbackChoice,
+          feelingLabel: meta.label,
+          coachReply: reply,
+          createdAt: new Date().toISOString()
+        };
+        return saveActivityFeedback(user.uid, String(act.id), payload).then(function(){
+          var mergedMap = Object.assign({}, feedbackMap, {[String(act.id)]: payload});
+          setFeedbackMap(mergedMap);
+          setFeedbackReply(reply);
+          var hardStreak = latestHardStreak(mergedMap);
+          if (hardStreak >= 2 && nextTrainingBase && !isRest(nextTrainingBase)) {
+            var adjustPrompt =
+              "Je bent Wims coach. De laatste twee runs voelden zwaar of moeilijk aan. " +
+              "Laatste run: " + (act.name||"Run") + ", " + distKm + " km in " + Math.round((act.moving_time||0)/60) + " min, pace " + pace + ". " +
+              "Geplande volgende training: " + nextTrainingBase + ". " +
+              "Pas die volgende training lichter aan op basis van deze prestatie en het gevoel. " +
+              "Geef exact 1 korte trainingsbeschrijving in het Nederlands. Geen uitleg. Voorbeelden van stijl: '30 min. rustig' of 'Rust' of '45 min. rustig, zonder tempo'.";
+            return callClaude(adjustPrompt, 80).then(function(adj){
+              var adjustedText = (adj.text || "30 min. rustig").trim().replace(/^["']|["']$/g,"");
+              var notePrompt =
+                "Schrijf een korte coachboodschap voor Wim. " +
+                "Zeg dat we de volgende training hebben aangepast omdat twee trainingen na elkaar zwaar voelden. " +
+                "Nieuwe training: " + adjustedText + ". " +
+                "Hou het warm, duidelijk en onder 45 woorden.";
+              return callClaude(notePrompt, 120).then(function(note){
+                var adjustment = {
+                  active:true,
+                  baseTraining: nextTrainingBase,
+                  adjustedText: adjustedText,
+                  coachNote: (note.text || "We maken je volgende training iets lichter.").trim(),
+                  createdAt: new Date().toISOString(),
+                  triggerActivityId: String(act.id)
+                };
+                return saveTrainingAdjustment(user.uid, adjustment).then(function(){
+                  setTrainingAdjustment(adjustment);
+                  setFeedbackReply(reply + "\n\n" + adjustment.coachNote);
+                });
+              });
+            });
+          }
+        });
+      })
+      .then(function(){
+        setFeedbackBusy(false);
+        setFeedbackStep(2);
+      })
+      .catch(function(err){
+        console.error("Feedback save error:", err);
+        setFeedbackReply("Dat ging mis. Probeer opnieuw.");
+        setFeedbackBusy(false);
+        setFeedbackStep(2);
+      });
+  }
+
+  var planMeta = currentPlanMeta(profile);
+  var activePlan = planMeta.plan;
+  var planName = planMeta.name;
+  var totalWeeks = planMeta.weeks;
+  var el = daysFrom(startDate);
+  var state = startDate ? computeState(startDate, activities, activePlan) : null;
+  var pi = state ? state.planIdx : 0;
+  var baseTodayT = activePlan[pi]||"Rust";
+  var todayT = (trainingAdjustment && trainingAdjustment.active && !isRest(baseTodayT)) ? trainingAdjustment.adjustedText : baseTodayT;
+  var week = Math.floor(el/3);
+  var strip = buildStrip(startDate, el, state?state.cmap:null, pi, activePlan);
+  var missed = state ? state.missedYest : null;
+
+  function saveStravaState(sv) {
+    setStravaT(sv);
+    lsSet("st_"+user.uid, JSON.stringify(sv));
+    setProfile(function(prev){ return Object.assign({}, prev, {stravaConnected:true}); });
+    updateProfileField("stravaConnected", true);
+    saveProfilePatch({stravaConnected:true,onboardingDone:true}).then(function(){
+      if (onboardingStep >= 0) {
+        setOnboardingStep(-1);
+        setOnboardingComplete(true);
+      }
+    });
+  }
+
+  function clearStravaState() {
+    setStravaT(null);
+    lsRemove("st_"+user.uid);
+    updateProfileField("stravaConnected", false);
+    saveProfilePatch({stravaConnected:false});
+  }
+
+  function syncStrava(sv) {
+    var s = sv||stravaT; if (!s) return;
+    setSyncing(true);
+    setStrErr("");
+    authedFetch("/.netlify/functions/strava-activities", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        accessToken:s.accessToken,
+        refreshToken:s.refreshToken,
+        expiresAt:s.expiresAt
+      })
+    })
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,data:d}; }); })
+    .then(function(res){
+      if (!res.ok) throw new Error(res.data.error || "Strava sync mislukt");
+      if (res.data.tokens) saveStravaState(res.data.tokens);
+      if (Array.isArray(res.data.activities)) {
+        var orderedActs = sortedActivities(res.data.activities);
+        setActivities(orderedActs);
+        lsSet("ac_"+user.uid, JSON.stringify(orderedActs));
+      }
+      setSyncing(false);
+    })
+    .catch(function(e){
+      setStrErr(e.message || "Strava sync mislukt");
+      setSyncing(false);
+    });
+  }
+
+  function getRedirectUri() {
+    return window.location.origin + window.location.pathname;
+  }
+
+  function startStravaConnect() {
+    if (!cfg || !cfg.stravaClientId) {
+      setStrErr("STRAVA_CLIENT_ID ontbreekt in Netlify.");
+      return;
+    }
+    var authUrl = "https://www.strava.com/oauth/authorize?client_id=" + encodeURIComponent(cfg.stravaClientId) +
+      "&redirect_uri=" + encodeURIComponent(getRedirectUri()) +
+      "&response_type=code&scope=activity:read_all&approval_prompt=force";
+    window.location.href = authUrl;
+  }
+
+  function exchangeStravaCode(code) {
+    if (!code) return;
+    setConnecting(true);
+    setStrErr("");
+    authedFetch("/.netlify/functions/strava-token", {
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        code:code,
+        redirectUri:getRedirectUri()
+      })
+    })
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,data:d}; }); })
+    .then(function(res){
+      if (!res.ok) throw new Error(res.data.error || "Koppelen lukt niet");
+      saveStravaState(res.data.tokens);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      syncStrava(res.data.tokens);
+      setConnecting(false);
+    })
+    .catch(function(e){
+      setStrErr(e.message || "Koppelen lukt niet");
+      setConnecting(false);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    });
+  }
+
+  function getCoach() {
+    setAiLoad(true); setAiMsg(""); setAiMeta(null);
+    var ordered = sortedActivities(activities);
+    var startTs = startDate ? localDate(startDate).getTime() : null;
+    var preStart = startTs===null ? [] : ordered.filter(function(a){ return new Date(a.start_date).getTime() < startTs; });
+    var postStart = startTs===null ? ordered.slice() : ordered.filter(function(a){ return new Date(a.start_date).getTime() >= startTs; });
+    var recentActs = postStart.slice(0,7);
+    var recentSummary = recentActs.map(function(a){
+      return a.start_date.slice(0,10)+": "+a.name+", "+(a.distance/1000).toFixed(1)+" km in "+Math.round(a.moving_time/60)+" min";
+    }).join(" | ");
+
+    var now = Date.now();
+    var last7 = postStart.filter(function(a){ return (now - new Date(a.start_date).getTime()) <= 7*86400000; });
+    var prev7 = postStart.filter(function(a){
+      var diff = now - new Date(a.start_date).getTime();
+      return diff > 7*86400000 && diff <= 14*86400000;
+    });
+
+    function sumKm(arr){ return arr.reduce(function(s,a){ return s + a.distance; }, 0) / 1000; }
+    function sumMin(arr){ return Math.round(arr.reduce(function(s,a){ return s + a.moving_time; }, 0) / 60); }
+
+    var baselineKm = sumKm(preStart);
+    var baselineSessions = preStart.length;
+    var baselineLong = preStart.reduce(function(m,a){ return Math.max(m, (a.distance||0)/1000); }, 0).toFixed(1);
+    var baselineSummary = baselineSessions
+      ? (baselineSessions + " sessies voor de start, " + baselineKm.toFixed(1) + " km totaal, langste run " + baselineLong + " km")
+      : "geen activiteiten voor de start";
+
+    var last7km = sumKm(last7).toFixed(1);
+    var prev7km = sumKm(prev7).toFixed(1);
+    var last7min = sumMin(last7);
+    var trend = (Number(prev7km) > 0) ? Math.round(((Number(last7km) - Number(prev7km)) / Number(prev7km)) * 100) : null;
+    var mt = missed ? "Gisteren gemist: " + missed.training + "." : "Geen gemiste training gisteren.";
+    var trainingType = getTag(todayT).label;
+    var paceHints = getPace(todayT);
+    var paceText = paceHints ? paceHints.map(function(p){ return p.label + " " + p.pace; }).join(", ") : "geen specifieke pace";
+    var fuel = getNutr(todayT);
+    var fuelText = fuel ? (fuel.type + " | carbs: " + fuel.carbs + ", eiwit: " + fuel.eiwit + ", vet: " + fuel.vet) : "";
+    var planProgress = startDate ? Math.min(Math.round(((pi+1)/activePlan.length)*100),100) : 0;
+    var programKm = sumKm(postStart).toFixed(1);
+
+    var prompt =
+      "Je bent Wims persoonlijke coach voor zijn ultra-opbouw. Klink rustig, slim en menselijk. " +
+      "Schrijf in natuurlijk Nederlands, zonder kopjes, zonder lijstjes en zonder labels. " +
+      "Geef 3 tot 5 korte zinnen en blijf onder 95 woorden. " +
+      "Gebruik activiteiten vóór de startdatum alleen om zijn basisconditie in te schatten. " +
+      "Baseer je concrete advies daarna alleen op het schema en de activiteiten vanaf de startdatum. " +
+      "Geen marketingtaal, geen hype, geen vaagheden. Schrijf zoals een goede coach in een sterke app. " +
+      "Context: week " + (week+1) + " van " + totalWeeks + ", voortgang " + planProgress + "%. Training vandaag: " + todayT + " (" + trainingType + "). Pace: " + paceText + ". " +
+      mt + " Basis voor de start: " + baselineSummary + ". " +
+      "Sinds de start: " + postStart.length + " sessies en " + programKm + " km. " +
+      "Laatste 7 dagen: " + last7km + " km, " + last7min + " min, " + last7.length + " sessies. " +
+      "Vorige 7 dagen: " + prev7km + " km. " +
+      (trend===null ? "" : "Trend versus vorige week: " + trend + "%. ") +
+      "Recente sessies sinds de start: " + (recentSummary || "geen recente activiteiten") + ". " +
+      "Voeding vandaag: " + fuelText + ".";
+
+    callClaude(prompt, 240)
+      .then(function(res){
+        setAiMsg((res.text || "Coach even offline. Probeer straks.").trim());
+        setAiMeta(res.usage || null);
+        setAiLoad(false);
+      })
+      .catch(function(err){
+        console.error("Coach error:", err);
+        setAiMsg(err && err.message ? ("Coach even offline. " + err.message) : "Coach even offline. Probeer straks.");
+        setAiLoad(false);
+      });
+  }
+
+  useEffect(function(){ if (user && startDate) getCoach(); }, [user, startDate, activities.length]);
+
+  var ykm = (activities.reduce(function(s,a){return s+a.distance;},0)/1000).toFixed(1);
+  var yh = Math.round(activities.reduce(function(s,a){return s+a.moving_time;},0)/3600);
+
+  if (authLoad) return h("div",{style:{display:"flex",justifyContent:"center",alignItems:"center",height:"100vh",flexDirection:"column",gap:10,color:"#64748b"}},h("div",{style:{fontSize:32}},"🏃"),h("div",{style:{fontSize:14,fontWeight:600}},"App opent..."));
+  if (!user) return h(LoginScreen,null);
+  if (user && !profileLoad && onboardingStep >= 0 && !profile.onboardingDone) {
+    return h(OnboardingFlow,{
+      user:user,
+      profile:profile,
+      onboardingStep:onboardingStep,
+      setOnboardingStep:setOnboardingStep,
+      updateProfileField:updateProfileField,
+      saveProfilePatch:saveProfilePatch,
+      cfg:cfg,
+      startStravaConnect:startStravaConnect,
+      connecting:connecting,
+      setOnboardingComplete:setOnboardingComplete
+    });
+  }
+  if (user && onboardingComplete) {
+    return h(WelcomeFlow,{
+      profile:profile,
+      setOnboardingComplete:setOnboardingComplete,
+      setTab:setTab
+    });
+  }
+
+  function btn(t,e,l){ return h("button",{key:t,onClick:function(){setTab(t);},style:{flex:1,padding:"10px 2px",border:"none",background:tab===t?"#ea580c":"transparent",color:tab===t?"white":"#64748b",fontSize:11,fontWeight:tab===t?700:500,cursor:"pointer",borderRadius:12,boxShadow:tab===t?"0 10px 24px rgba(234,88,12,0.22)":"none"}},e,h("br",null),l); }
+
+  return h("div",{style:{maxWidth:480,margin:"0 auto",padding:"20px 16px 84px",minHeight:"100vh"}},
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}},
+      h("div",null,
+        h("h2",{style:{margin:0,fontSize:24,fontWeight:800,letterSpacing:"-0.03em"}},"Hey " + (profile.displayName || user.displayName || "loper") + "!"),
+        h("p",{style:{marginTop:4,fontSize:12,color:"#64748b",fontWeight:500}},(startDate?"Week "+(week+1)+"/"+totalWeeks+" · ":"")+new Date().toLocaleDateString("nl-NL",{weekday:"long",day:"numeric",month:"long"}))
+      ),
+      h("div",{style:{position:"relative",display:"flex",gap:8,alignItems:"center"}},
+        stravaT && h("button",{onClick:function(){syncStrava();},disabled:syncing,style:{fontSize:12,padding:"8px 12px",borderRadius:12,border:"1px solid #e2e8f0",cursor:"pointer",background:"white",color:"#475569",fontWeight:700}},syncing?"Bezig":"Vernieuw"),
+        h("button",{onClick:function(){setMenuOpen(function(v){return !v;});},style:{width:40,height:40,borderRadius:12,border:"1px solid #e2e8f0",background:"white",color:"#0f172a",fontSize:18,fontWeight:700,cursor:"pointer",boxShadow:"0 10px 24px rgba(15,23,42,0.05)"}},"☰"),
+        menuOpen && h("div",{style:{position:"absolute",top:48,right:0,width:210,background:"white",border:"1px solid #e2e8f0",borderRadius:16,padding:8,boxShadow:"0 20px 40px rgba(15,23,42,0.12)",zIndex:200}},
+          [
+            {label:"Dashboard",tab:"dashboard"},
+            {label:"Schema",tab:"plan"},
+            {label:"Statistieken",tab:"stats"},
+            {label:"Profiel",tab:"profile"},
+            {label:"Strava",tab:"strava"}
+          ].map(function(item){
+            return h("button",{key:item.tab,onClick:function(){setTab(item.tab); setMenuOpen(false);},style:{display:"block",width:"100%",textAlign:"left",padding:"11px 12px",borderRadius:12,border:"none",background:tab===item.tab?"#fff7ed":"white",color:tab===item.tab?"#c2410c":"#0f172a",fontWeight:700,cursor:"pointer",boxShadow:"none"}},item.label);
+          }),
+          h("div",{style:{height:1,background:"#e2e8f0",margin:"6px 4px"}}),
+          h("button",{onClick:function(){setMenuOpen(false); fbAuth.signOut();},style:{display:"block",width:"100%",textAlign:"left",padding:"11px 12px",borderRadius:12,border:"none",background:"white",color:"#b91c1c",fontWeight:700,cursor:"pointer",boxShadow:"none"}},"Log uit")
+        )
+      )
+    ),
+
+    CONFIG_LOAD_ERROR && h("div",{style:{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:14,padding:14,marginBottom:16,fontSize:12,color:"#9a3412",lineHeight:1.55}},CONFIG_LOAD_ERROR),
+
+    missed && tab==="dashboard" && h(MissedBanner,{training:missed.training}),
+
+    feedbackActivity && h(RunFeedbackModal,{
+      activity:feedbackActivity,
+      step:feedbackStep,
+      setStep:setFeedbackStep,
+      choice:feedbackChoice,
+      setChoice:setFeedbackChoice,
+      busy:feedbackBusy,
+      reply:feedbackReply,
+      onSubmit:submitRunFeeling,
+      onClose:function(){ if (!feedbackMap[String(feedbackActivity.id)]) setFeedbackActivity(null); else setFeedbackActivity(null); },
+      adjustment:trainingAdjustment
+    }),
+
+    !startDate && tab==="dashboard" && h("div",{style:{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:12,padding:16,marginBottom:16}},
+      h("div",{style:{fontWeight:800,fontSize:18,marginBottom:8,letterSpacing:"-0.02em"}},"Kies je startdatum"),
+      h("input",{type:"date",id:"di",onChange:function(e){ var b=document.getElementById("db"); if(b) b.textContent=e.target.value?"🚀 Let's Go!":"📅 Kies je startdatum"; },style:{width:"100%",padding:10,borderRadius:8,border:"1px solid #ddd",fontSize:14,marginBottom:10}}),
+      h("button",{id:"db",onClick:function(){ var v=document.getElementById("di").value; if(!v) return; setStartDate(v); lsSet("sd_"+user.uid,v); updateProfileField("startDate", v); saveProfilePatch({startDate:v,onboardingDone:true}); },style:{width:"100%",padding:"12px 14px",borderRadius:12,border:"none",background:"#ea580c",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 10px 24px rgba(234,88,12,0.18)"}},"Start programma")
+    ),
+
+    tab==="dashboard" && h(Dashboard,{todayT:todayT,baseTodayT:baseTodayT,trainingAdjustment:trainingAdjustment,week:week,strip:strip,activities:activities,ykm:ykm,yh:yh,aiMsg:aiMsg,aiMeta:aiMeta,aiLoad:aiLoad,strava:stravaT,setTab:setTab,startDate:startDate,el:el,pi:pi,activePlan:activePlan,planName:planName,totalWeeks:totalWeeks}),
+    tab==="plan" && h(PlanTab,{pi:pi,startDate:startDate,el:el,state:state,activePlan:activePlan,totalWeeks:totalWeeks}),
+    tab==="stats" && h(StatsTab,{activities:activities,ykm:ykm,yh:yh,week:week,startDate:startDate,activePlan:activePlan,totalWeeks:totalWeeks}),
+    tab==="strava" && h(StravaTab,{cfg:cfg,strava:stravaT,startStravaConnect:startStravaConnect,connecting:connecting,strErr:strErr,activities:activities,clearStravaState:clearStravaState}),
+    tab==="profile" && h(ProfileTab,{user:user,profile:profile,profileLoad:profileLoad,profileSaving:profileSaving,profileErr:profileErr,updateProfileField:updateProfileField,saveProfilePatch:saveProfilePatch}),
+
+    h("div",{style:{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"rgba(255,255,255,0.96)",backdropFilter:"blur(14px)",borderTop:"1px solid #e2e8f0",display:"flex",padding:"8px 10px calc(8px + env(safe-area-inset-bottom, 0px))",gap:6,zIndex:100,boxShadow:"0 -10px 30px rgba(15,23,42,0.05)"}},
+      btn("dashboard","🏠","Dashboard"),btn("plan","📅","Schema"),btn("stats","📊","Stats"),btn("profile","👤","Profiel")
+    )
+  );
+}
+
+function MissedBanner(props) {
+  var ms = useState(""), mot = ms[0], setMot = ms[1];
+  var ls2 = useState(true), load = ls2[0], setLoad = ls2[1];
+  useEffect(function() {
+    callClaude("Geef een vurige motivatieboodschap (max 2 zinnen) voor Wim die gisteren "+props.training+" heeft gemist maar vandaag weer gaat. Spreek hem aan als Wim, gebruik emoji's.", 120)
+      .then(function(t){ setMot(t); setLoad(false); })
+      .catch(function(err){ console.error("Motivation error:", err); setLoad(false); });
+  }, []);
+  return h("div",{style:{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:12,padding:14,marginBottom:14}},
+    h("div",{style:{display:"flex",alignItems:"center",gap:8,marginBottom:6}},
+      h("span",{style:{fontSize:20}},"👀"),
+      h("span",{style:{fontWeight:700,fontSize:14,color:"#dc2626"}},"We hebben gisteren geen activiteit gezien, Wim")
+    ),
+    h("div",{style:{fontSize:12,color:"#7f1d1d",marginBottom:6}},"Gemiste training: ",h("em",null,props.training)," — verschoven naar vandaag."),
+    load && h("div",{style:{fontSize:12,color:"#888"}},"Even laden..."),
+    mot && h("div",{style:{fontSize:13,color:"#991b1b",fontStyle:"italic",lineHeight:1.5}},'"'+mot+'"')
+  );
+}
+
+
+function RunFeedbackModal(props) {
+  var activity=props.activity, step=props.step, setStep=props.setStep, choice=props.choice, setChoice=props.setChoice, busy=props.busy, reply=props.reply, onSubmit=props.onSubmit, onClose=props.onClose, adjustment=props.adjustment;
+  if (!activity) return null;
+  var dist = ((activity.distance||0)/1000).toFixed(1);
+  var mins = Math.round((activity.moving_time||0)/60);
+  function feelingBtn(key) {
+    var meta = feelingMeta(key), active = choice===key;
+    return h("button",{key:key,onClick:function(){setChoice(key);},style:{padding:"12px 10px",borderRadius:14,border:"1px solid "+(active?meta.accent:"#e2e8f0"),background:active?meta.bg:"white",color:active?meta.accent:"#0f172a",fontWeight:700,cursor:"pointer",boxShadow:"none",display:"flex",flexDirection:"column",alignItems:"center",gap:4}},
+      h("span",{style:{fontSize:22,lineHeight:1}},meta.emoji),
+      h("span",{style:{fontSize:12}},meta.label)
+    );
+  }
+  return h("div",{style:{position:"fixed",inset:0,background:"rgba(15,23,42,0.54)",zIndex:300,display:"flex",alignItems:"flex-end",justifyContent:"center",padding:"16px"}},
+    h("div",{style:{width:"100%",maxWidth:480,background:"white",borderRadius:24,padding:22,boxShadow:"0 28px 60px rgba(15,23,42,0.24)"}},
+      step===0 && h("div",null,
+        h("div",{style:{fontSize:13,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:1,marginBottom:10}},"Nieuwe run binnen"),
+        h("div",{style:{fontSize:30,marginBottom:10}},"👏"),
+        h("div",{style:{fontSize:28,fontWeight:800,letterSpacing:"-0.04em",lineHeight:1.05,marginBottom:10}},"Super gedaan"),
+        h("div",{style:{fontSize:15,color:"#475569",lineHeight:1.7,marginBottom:14}},
+          "Je run staat binnen: " + (activity.name || "Run") + " · " + dist + " km · " + mins + " min."
+        ),
+        h("div",{style:{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:16,padding:"14px 15px",fontSize:14,color:"#9a3412",lineHeight:1.6,marginBottom:14}},
+          "Mooi werk. Even één snelle check en je coach kan beter meedenken."
+        ),
+        h("button",{onClick:function(){setStep(1);},style:{width:"100%",padding:"15px 16px",borderRadius:16,border:"none",background:"#ea580c",color:"white",fontWeight:800,fontSize:15,cursor:"pointer"}},"Hoe voelde het?")
+      ),
+      step===1 && h("div",null,
+        h("div",{style:{fontSize:13,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:1,marginBottom:10}},"Jouw gevoel"),
+        h("div",{style:{fontSize:26,fontWeight:800,letterSpacing:"-0.04em",lineHeight:1.08,marginBottom:8}},"Hoe was deze run voor jou?"),
+        h("div",{style:{fontSize:15,color:"#475569",lineHeight:1.7,marginBottom:16}},"Kies wat het dichtst in de buurt komt."),
+        h("div",{style:{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8,marginBottom:14}},
+          ["very_hard","hard","okay","good","great"].map(feelingBtn)
+        ),
+        h("div",{style:{display:"flex",gap:10}},
+          h("button",{onClick:onClose,style:{flex:1,padding:"14px 15px",borderRadius:16,border:"1px solid #e2e8f0",background:"white",color:"#475569",fontWeight:700,cursor:"pointer",boxShadow:"none"}},"Later"),
+          h("button",{onClick:onSubmit,disabled:!choice || busy,style:{flex:1,padding:"14px 15px",borderRadius:16,border:"none",background:(!choice || busy)?"#cbd5e1":"#ea580c",color:"white",fontWeight:800,cursor:(!choice || busy)?"not-allowed":"pointer"}},busy?"Even denken...":"Verstuur")
+        )
+      ),
+      step===2 && h("div",null,
+        h("div",{style:{fontSize:13,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:1,marginBottom:10}},"Coach"),
+        h("div",{style:{fontSize:26,fontWeight:800,letterSpacing:"-0.04em",lineHeight:1.08,marginBottom:12}},"Dit nemen we mee"),
+        h("div",{style:{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:18,padding:"16px 16px",fontSize:15,lineHeight:1.75,color:"#0f172a",whiteSpace:"pre-line",marginBottom:14}},reply || "Bedankt. We nemen dit mee."),
+        adjustment && adjustment.active && h("div",{style:{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:16,padding:"14px 15px",fontSize:14,color:"#9a3412",lineHeight:1.6,marginBottom:14}},
+          h("strong",null,"Volgende training aangepast")," · ", adjustment.adjustedText
+        ),
+        h("button",{onClick:onClose,style:{width:"100%",padding:"15px 16px",borderRadius:16,border:"none",background:"#ea580c",color:"white",fontWeight:800,fontSize:15,cursor:"pointer"}},"Verder")
+      )
+    )
+  );
+}
+
+
+
+function MyProgressCard(props) {
+  var activities = props.activities || [];
+  var ps = useState("month"), period = ps[0], setPeriod = ps[1];
+  var series = bucketActivities(activities, period);
+  var compare = comparePeriodActivities(activities, period);
+  var currentKm = sumDistanceKm(compare.current);
+  var prevKm = sumDistanceKm(compare.previous);
+  var delta = pctDelta(currentKm, prevKm);
+  var currentHours = sumHours(compare.current);
+  var currentSessions = compare.current.length;
+  var avgKm = currentSessions ? (currentKm/currentSessions) : 0;
+  var maxVal = Math.max.apply(null, series.buckets.map(function(b){ return b.value; }).concat([1]));
+  var width = 100;
+  var height = 84;
+  var paddingX = 6;
+  var usableW = width - paddingX*2;
+  var usableH = 44;
+  var points = series.buckets.map(function(b, i){
+    var x = paddingX + (series.buckets.length===1 ? usableW/2 : (i*(usableW/(series.buckets.length-1))));
+    var y = 56 - ((b.value/maxVal) * usableH);
+    return {x:x,y:y,v:b.value,label:b.label};
+  });
+  var line = points.map(function(p, i){ return (i===0 ? "M" : "L") + p.x + "," + p.y; }).join(" ");
+  var area = points.length ? (line + " L " + points[points.length-1].x + ",56 L " + points[0].x + ",56 Z") : "";
+  function chip(id, label) {
+    var active = period===id;
+    return h("button",{key:id,onClick:function(){setPeriod(id);},style:{padding:"10px 12px",borderRadius:12,border:"1px solid "+(active?"#fdba74":"#e2e8f0"),background:active?"#fff7ed":"white",color:active?"#c2410c":"#475569",fontWeight:700,fontSize:12,cursor:"pointer",boxShadow:"none"}},label);
+  }
+  var deltaText = delta===null ? "Nieuw" : ((delta>=0?"+":"") + delta + "% t.o.v. vorige " + (period==="week"?"week":period==="month"?"maand":"jaar"));
+  return h("div",{style:{background:"white",border:"1px solid #e2e8f0",borderRadius:22,padding:18,marginBottom:18,boxShadow:"0 18px 42px rgba(15,23,42,0.07)"}},
+    h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:12}},
+      h("div",null,
+        h("div",{style:{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase",marginBottom:6}},"Mijn vooruitgang"),
+        h("div",{style:{fontSize:28,fontWeight:800,letterSpacing:"-0.04em",lineHeight:1.05,marginBottom:4}}, formatKm(currentKm) + " km"),
+        h("div",{style:{fontSize:13,color:"#475569"}}, period==="week" ? "deze week" : (period==="month" ? "deze maand" : "dit jaar"))
+      ),
+      h("div",{style:{display:"flex",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}},[
+        chip("week","Deze week"),
+        chip("month","Deze maand"),
+        chip("year","Dit jaar")
+      ])
+    ),
+    h("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:14}},
+      [
+        {label:"Sessies",value:String(currentSessions)},
+        {label:"Uren",value:(Math.round(currentHours*10)/10).toFixed(currentHours>=10?0:1)},
+        {label:"Gem. run",value: currentSessions ? formatKm(avgKm)+" km" : "0 km"}
+      ].map(function(item){
+        return h("div",{key:item.label,style:{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:14,padding:"12px 12px"}},
+          h("div",{style:{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}},item.label),
+          h("div",{style:{fontSize:22,fontWeight:800,letterSpacing:"-0.03em"}},item.value)
+        );
+      })
+    ),
+    h("div",{style:{background:"linear-gradient(180deg,#fff7ed 0%, #ffffff 100%)",border:"1px solid #fed7aa",borderRadius:18,padding:"12px 14px"}},
+      h("div",{style:{fontSize:12,fontWeight:700,color:"#c2410c",marginBottom:8}},deltaText),
+      h("svg",{viewBox:"0 0 100 70",style:{width:"100%",height:110,display:"block"}},
+        h("line",{x1:"6",y1:"56",x2:"94",y2:"56",stroke:"#e2e8f0","strokeWidth":"1"}),
+        h("path",{d:area,fill:"rgba(234,88,12,0.10)"}),
+        h("path",{d:line,fill:"none",stroke:"#ea580c","strokeWidth":"1.8","strokeLinecap":"round","strokeLinejoin":"round"}),
+        points.map(function(p, i){
+          return h("g",{key:i},
+            h("circle",{cx:p.x,cy:p.y,r:"1.7",fill:"#fff",stroke:"#ea580c","strokeWidth":"1.3"})
+          );
+        }),
+        points.filter(function(_,i){
+          if (period==="year") return true;
+          if (period==="week") return true;
+          return i===0 || i===points.length-1 || i%Math.max(1, Math.ceil(points.length/5))===0;
+        }).map(function(p,i){
+          return h("text",{key:"t"+i,x:p.x,y:"66",textAnchor:"middle",fontSize:"4",fill:"#64748b",fontWeight:"600"}, p.label);
+        })
+      )
+    )
+  );
+}
+
+function Dashboard(props) {
+  var todayT=props.todayT,baseTodayT=props.baseTodayT,trainingAdjustment=props.trainingAdjustment,week=props.week,strip=props.strip,activities=props.activities,ykm=props.ykm,yh=props.yh,aiMsg=props.aiMsg,aiMeta=props.aiMeta,aiLoad=props.aiLoad,strava=props.strava,setTab=props.setTab,startDate=props.startDate,el=props.el,pi=props.pi,activePlan=props.activePlan,planName=props.planName,totalWeeks=props.totalWeeks;
+  var tag=getTag(todayT), nutr=getNutr(todayT), ph=getPace(todayT);
+  var progress=startDate && activePlan && activePlan.length?Math.min(Math.round(((pi+1)/activePlan.length)*100),100):0;
+  var weeksLeft=Math.max((totalWeeks||0)-week-1,0);
+  var calDow=new Date().getDay()===0?6:new Date().getDay()-1;
+  var recent=sortedActivities(activities).slice(0,4);
+  return h("div",null,
+    trainingAdjustment && trainingAdjustment.active && h("div",{style:{background:"#fff7ed",border:"1px solid #fed7aa",borderRadius:16,padding:"14px 16px",marginBottom:14}},
+      h("div",{style:{fontSize:11,fontWeight:700,color:"#9a3412",letterSpacing:1,textTransform:"uppercase",marginBottom:6}},"Coach wijzigde je training"),
+      h("div",{style:{fontSize:14,fontWeight:700,color:"#7c2d12",marginBottom:6}},trainingAdjustment.adjustedText),
+      h("div",{style:{fontSize:13,color:"#9a3412",lineHeight:1.6}},trainingAdjustment.coachNote || "We maken je volgende training iets lichter.")
+    ),
+    h("div",{style:{background:!isRest(todayT)?"linear-gradient(180deg,#fff7ed 0%,#ffffff 64%)":"linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)",border:"1px solid "+(!isRest(todayT)?"#fdba74":"#e2e8f0"),borderRadius:24,padding:20,marginBottom:18,boxShadow:"0 18px 42px rgba(15,23,42,0.08)"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}},
+        h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:2}},h("div",{style:{fontSize:11,fontWeight:700,color:"#64748b",letterSpacing:1,textTransform:"uppercase"}},"Vandaag — "+(FULL_DAYS[calDow]||"")),h("div",{style:{fontSize:11,fontWeight:700,color:"#c2410c",background:"#fff7ed",border:"1px solid #fed7aa",padding:"5px 9px",borderRadius:999}},planName)),
+        startDate && h("span",{style:{fontSize:10,background:tag.color,color:tag.text,padding:"2px 8px",borderRadius:20,fontWeight:600}},tag.label)
+      ),
+      !startDate ? h("div",{style:{fontSize:14,color:"#888",marginTop:8}},"Kies eerst je startdatum") :
+        h("div",null,
+          trainingAdjustment && trainingAdjustment.active && baseTodayT!==todayT && h("div",{style:{fontSize:12,color:"#9a3412",marginTop:8,marginBottom:4}}, "Oorspronkelijk: " + baseTodayT),
+          h("div",{style:{fontSize:14,fontWeight:600,color:"#111",marginTop:8,lineHeight:1.5}},todayT)
+        ),
+      startDate && h("div",{style:{fontSize:12,color:"#64748b",marginTop:8,lineHeight:1.6}},!isRest(todayT)?"Vandaag draait om ritme, niet om forceren.":"Vandaag draait om herstel en fris blijven."),
+      startDate && ph && h("div",{style:{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}},
+        ph.map(function(hh){ return h("span",{key:hh.label,style:{fontSize:11,background:"white",border:"1px solid #e5e7eb",borderRadius:20,padding:"2px 10px",color:hh.color,fontWeight:600}},hh.label+": "+hh.pace); })
+      ),
+      startDate && h("div",{style:{marginTop:12}},
+        h("div",{style:{display:"flex",justifyContent:"space-between",fontSize:11,color:"#888",marginBottom:4}},h("span",null,"Voortgang schema"),h("span",null,progress+"% · "+weeksLeft+" weken te gaan")),
+        h("div",{style:{background:"#e5e7eb",borderRadius:99,height:6}},h("div",{style:{background:"#ea580c",width:progress+"%",height:6,borderRadius:99}}))
+      )
+    ),
+    startDate && strip.length && h(WeekStrip,{todayWeek:week,data:strip}),
+    
+    
+h(MyProgressCard,{activities:activities}),
+h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}},
+      [{e:"📏",v:ykm,u:"km",l:"dit jaar"},{e:"⏱",v:yh,u:"uur",l:"bewogen"},{e:"✅",v:activities.length,u:"sess.",l:"voltooid"}].map(function(item){
+        return h("div",{key:item.l,style:{background:"#f9fafb",border:"1px solid #eee",borderRadius:10,padding:"10px 8px",textAlign:"center"}},
+          h("div",{style:{fontSize:18}},item.e),
+          h("div",{style:{fontSize:18,fontWeight:700,lineHeight:1.2}},item.v,h("span",{style:{fontSize:11,fontWeight:400}}," "+item.u)),
+          h("div",{style:{fontSize:10,color:"#888"}},item.l)
+        );
+      })
+    ),
+    startDate && nutr && h("div",{style:{background:nutr.color,border:"1px solid "+nutr.border,borderRadius:12,padding:14,marginBottom:14}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+        h("div",{style:{display:"flex",alignItems:"center",gap:6}},
+          h("span",{style:{fontSize:24,lineHeight:1}},nutr.emoji),
+          h("div",null,h("div",{style:{fontWeight:800,fontSize:15,color:nutr.accent,letterSpacing:"-0.02em"}},"Voeding vandaag"),h("div",{style:{fontSize:10,color:"#888"}},nutr.type))
+        ),
+        h("div",{style:{display:"flex",gap:6,fontSize:10,textAlign:"center"}},
+          [{l:"Carbs",v:nutr.carbs,c:nutr.cc},{l:"Eiwit",v:nutr.eiwit,c:nutr.ec},{l:"Vet",v:nutr.vet,c:nutr.vc}].map(function(item){
+            return h("div",{key:item.l,style:{background:"white",borderRadius:8,padding:"4px 6px",minWidth:44}},h("div",{style:{color:item.c,fontWeight:700,fontSize:11}},item.v),h("div",{style:{color:"#888",fontSize:9}},item.l));
+          })
+        )
+      ),
+      h("div",{style:{display:"flex",flexDirection:"column",gap:5,fontSize:12,color:"#444"}},
+        nutr.voor && h("div",null,h("span",{style:{fontWeight:600}},"Voor: "),nutr.voor),
+        nutr.na && h("div",null,h("span",{style:{fontWeight:600}},"Na: "),nutr.na),
+        h("div",null,h("span",{style:{fontWeight:600}},"Dag: "),nutr.dag)
+      ),
+      h("div",{style:{marginTop:10,fontSize:12,fontStyle:"italic",color:nutr.accent,lineHeight:1.5}},nutr.tip)
+    ),
+    recent.length && h("div",{style:{marginBottom:14}},
+      h("div",{style:{fontSize:11,fontWeight:700,color:"#888",letterSpacing:1,marginBottom:8}},"RECENTE ACTIVITEITEN"),
+      recent.map(function(a){
+        return h("div",{key:a.id,style:{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"9px 12px",background:"#f9fafb",borderRadius:10,marginBottom:6}},
+          h("div",null,h("div",{style:{fontWeight:600,fontSize:13}},a.name),h("div",{style:{fontSize:11,color:"#888"}},new Date(a.start_date).toLocaleDateString("nl-NL",{weekday:"short",day:"numeric",month:"short"}))),
+          h("div",{style:{textAlign:"right"}},h("div",{style:{fontWeight:700,fontSize:13}},(a.distance/1000).toFixed(1)+" km"),h("div",{style:{color:"#888",fontSize:11}},Math.round(a.moving_time/60)+" min"))
+        );
+      })
+    ),
+    !strava && h("div",{onClick:function(){setTab("strava");},style:{background:"#fef3c7",border:"1px solid #fde68a",borderRadius:10,padding:"10px 14px",marginBottom:14,fontSize:12,color:"#78350f",cursor:"pointer"}},"Koppel Strava"),
+    h("div",{style:{background:"linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)",border:"1px solid #e2e8f0",borderRadius:22,padding:20,boxShadow:"0 18px 42px rgba(15,23,42,0.08)"}},
+      h("div",{style:{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}},
+        h("div",null,
+          h("div",{style:{fontSize:11,fontWeight:700,color:"#94a3b8",letterSpacing:1,textTransform:"uppercase"}},"Coach"),
+          h("div",{style:{fontSize:12,color:"#64748b",marginTop:2}},"Gebaseerd op je schema en je runs")
+        ),
+        aiMeta && aiMeta.remaining!==null && aiMeta.remaining!==undefined && h("div",{style:{fontSize:10,color:"#94a3b8",background:"white",border:"1px solid #e2e8f0",padding:"4px 8px",borderRadius:999}}, aiMeta.remaining+"/"+aiMeta.dailyLimit+" over")
+      ),
+      aiLoad && h("div",{style:{fontSize:14,color:"#64748b",lineHeight:1.7}},"Even denken..."),
+      aiMsg && h("div",{style:{fontSize:15,lineHeight:1.9,color:"#0f172a",whiteSpace:"pre-line",fontWeight:500,letterSpacing:"-0.01em"}},aiMsg),
+      !aiMsg && !aiLoad && h("div",{style:{fontSize:14,color:"#94a3b8"}},"Even laden...")
+    )
+  );
+}
+
+function PlanTab(props) {
+  var pi=props.pi,startDate=props.startDate,el=props.el,state=props.state;
+  var todayWeek=Math.floor(el/7);
+  var vws=useState(todayWeek), viewWeek=vws[0], setViewWeek=vws[1];
+  function getData(wk) {
+    if (wk===todayWeek) return buildStrip(startDate,el,state?state.cmap:null,pi);
+    var start=startDate?localDate(startDate):new Date();
+    var sdow=start.getDay()===0?6:start.getDay()-1;
+    return Array.from({length:7},function(_,i){ return {training:PLAN[wk*7+i]||"Rust",dayLabel:DAYS[(sdow+wk*7+i)%7],isToday:false}; });
+  }
+  var data=getData(viewWeek);
+  var nb={width:36,height:36,borderRadius:"50%",border:"1px solid #e5e7eb",background:"white",fontSize:20,cursor:"pointer"};
+  return h("div",null,
+    h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}},
+      h("button",{onClick:function(){setViewWeek(function(v){return Math.max(0,v-1);});},disabled:viewWeek===0,style:nb},"<"),
+      h("div",{style:{textAlign:"center"}},h("div",{style:{fontWeight:700,fontSize:16}},"Week "+(viewWeek+1)+" / 16"),h("div",{style:{fontSize:11,color:"#888"}},viewWeek===todayWeek?"huidige week":viewWeek<todayWeek?"verleden":"toekomst")),
+      h("button",{onClick:function(){setViewWeek(function(v){return Math.min(15,v+1);});},disabled:viewWeek===15,style:nb},">")
+    ),
+    h("div",{style:{display:"flex",gap:4,marginBottom:14}},
+      Array.from({length:16},function(_,i){
+        return h("div",{key:i,onClick:function(){setViewWeek(i);},style:{flex:1,height:6,borderRadius:99,cursor:"pointer",background:i===viewWeek?"#ea580c":i===todayWeek?"#fed7aa":i<todayWeek?"#d1fae5":"#e5e7eb"}});
+      })
+    ),
+    data.map(function(item,i){
+      var tag=getTag(item.training), hints=getPace(item.training);
+      return h("div",{key:i,style:{display:"flex",gap:12,padding:"12px 14px",background:item.isToday?"#fff7ed":"white",border:"1px solid "+(item.isToday?"#fed7aa":"#eee"),borderRadius:12,marginBottom:8}},
+        h("div",{style:{width:34,textAlign:"center",flexShrink:0}},
+          h("div",{style:{fontSize:12,fontWeight:700,color:item.isToday?"#ea580c":"#888"}},item.dayLabel),
+          h("div",{style:{fontSize:21,lineHeight:1,marginTop:3}},dayIcon(item.training)),
+          item.isToday && h("div",{style:{fontSize:8,color:"#ea580c",fontWeight:600}},"vandaag")
+        ),
+        h("div",{style:{flex:1}},
+          h("span",{style:{fontSize:10,background:tag.color,color:tag.text,padding:"1px 7px",borderRadius:20,fontWeight:600,display:"inline-block",marginBottom:4}},tag.label),
+          h("div",{style:{fontSize:13,color:"#333",lineHeight:1.4}},item.training),
+          hints && h("div",{style:{display:"flex",gap:4,marginTop:5,flexWrap:"wrap"}},
+            hints.map(function(hh){ return h("span",{key:hh.label,style:{fontSize:10,background:"#f9fafb",border:"1px solid #e5e7eb",borderRadius:20,padding:"1px 8px",color:hh.color,fontWeight:600}},hh.label+": "+hh.pace); })
+          )
+        )
+      );
+    })
+  );
+}
+
+function StatsTab(props) {
+  var activities=props.activities,ykm=props.ykm,yh=props.yh,week=props.week,startDate=props.startDate;
+  var wdata=Array.from({length:Math.min(week+1,16)},function(_,i){
+    if (!startDate) return {week:"W"+(i+1),km:0,sessies:0,gepland:0};
+    var ws=localDate(startDate); ws.setDate(ws.getDate()+i*7);
+    var we=new Date(ws); we.setDate(ws.getDate()+7);
+    var wa=activities.filter(function(a){ var ad=new Date(a.start_date); return ad>=ws&&ad<we; });
+    return {week:"W"+(i+1),km:parseFloat((wa.reduce(function(s,a){return s+a.distance;},0)/1000).toFixed(1)),sessies:wa.length,gepland:0};
+  });
+  return h("div",null,
+    h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:20}},
+      [{e:"📏",v:ykm+" km",l:"Totale afstand"},{e:"⏱",v:yh+" uur",l:"Trainingstijd"},{e:"✅",v:activities.length,l:"Sessies voltooid"},{e:"📅",v:(week+1)+"/"+totalWeeks,l:"Huidige week"}].map(function(item){
+        return h("div",{key:item.l,style:{background:"#f9fafb",border:"1px solid #eee",borderRadius:12,padding:14,textAlign:"center"}},h("div",{style:{fontSize:22,marginBottom:4}},item.e),h("div",{style:{fontSize:18,fontWeight:700}},item.v),h("div",{style:{fontSize:11,color:"#888"}},item.l));
+      })
+    ),
+    h("div",{style:{fontSize:11,fontWeight:700,color:"#888",marginBottom:10,letterSpacing:1}},"📈 KM PER WEEK"),
+    h("div",{style:{overflowX:"auto"}},
+      h("div",{style:{display:"flex",alignItems:"flex-end",gap:4,height:120,padding:"0 4px",minWidth:wdata.length*32}},
+        wdata.map(function(item){
+          var maxKm=Math.max.apply(null,wdata.map(function(d){return d.km||1;}));
+          var barH=item.km>0?Math.max(4,Math.round((item.km/maxKm)*90)):0;
+          return h("div",{key:item.week,style:{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2}},
+            h("div",{style:{fontSize:9,color:"#888"}},item.km>0?item.km:""),
+            h("div",{style:{width:"100%",height:barH,background:"#ea580c",borderRadius:"4px 4px 0 0",minWidth:20}}),
+            h("div",{style:{fontSize:8,color:"#888"}},item.week)
+          );
+        })
+      )
+    )
+  );
+}
+
+
+
+function OnboardingFlow(props) {
+  var user=props.user, profile=props.profile, onboardingStep=props.onboardingStep, setOnboardingStep=props.setOnboardingStep, updateProfileField=props.updateProfileField, saveProfilePatch=props.saveProfilePatch, cfg=props.cfg, startStravaConnect=props.startStravaConnect, connecting=props.connecting;
+  var ns = useState(profile.displayName || user.displayName || ""), name = ns[0], setName = ns[1];
+  var gs = useState(profile.goalDistance || "80 km ultra"), goal = gs[0], setGoal = gs[1];
+  var es = useState(profile.experienceLevel || ""), level = es[0], setLevel = es[1];
+  var ds = useState(profile.startDate || ""), start = ds[0], setStart = ds[1];
+  var ss = useState(""), error = ss[0], setError = ss[1];
+
+  function wrap(children) {
+    return h("div",{style:{minHeight:"100vh",background:"#f8fafc",padding:"24px 16px",display:"flex",alignItems:"center",justifyContent:"center"}},
+      h("div",{style:{width:"100%",maxWidth:420}},
+        h("div",{style:{marginBottom:18,textAlign:"center"}},
+          h("div",{style:{fontSize:28,marginBottom:10}},"🏃"),
+          h("div",{style:{display:"flex",justifyContent:"center",gap:8,marginBottom:12}},
+            [0,1,2,3,4].map(function(i){
+              return h("div",{key:i,style:{width:i===onboardingStep?24:8,height:8,borderRadius:999,background:i<=onboardingStep?"#ea580c":"#cbd5e1",transition:"all .2s ease"}});
+            })
+          )
+        ),
+        h("div",{style:{background:"white",border:"1px solid #e2e8f0",borderRadius:22,padding:22,boxShadow:"0 20px 48px rgba(15,23,42,0.08)"}}, children)
+      )
+    );
+  }
+
+  function nextWith(patch, nextStep) {
+    setError("");
+    saveProfilePatch(patch).then(function(){
+      setOnboardingStep(nextStep);
+    });
+  }
+
+  function optionButton(label, active, onClick) {
+    return h("button",{onClick:onClick,style:{width:"100%",padding:"14px 16px",borderRadius:14,border:"1px solid "+(active?"#ea580c":"#e2e8f0"),background:active?"#fff7ed":"white",color:active?"#c2410c":"#0f172a",fontWeight:700,fontSize:14,cursor:"pointer",textAlign:"left",boxShadow:"none",marginBottom:10}},label);
+  }
+
+  if (onboardingStep === 0) {
+    return wrap([
+      h("div",{key:"h",style:{fontSize:26,fontWeight:800,letterSpacing:"-0.03em",marginBottom:8}},"Hoe mogen we je noemen?"),
+      h("div",{key:"s",style:{fontSize:14,color:"#64748b",lineHeight:1.6,marginBottom:18}},"Zo spreken we je aan in de app en in je coach."),
+      h("input",{key:"i",value:name,onChange:function(e){setName(e.target.value);},placeholder:"Bijv. Wim",style:{width:"100%",padding:"14px 15px",borderRadius:14,border:"1px solid #cbd5e1",fontSize:15,marginBottom:14}}),
+      error && h("div",{key:"e",style:{fontSize:12,color:"#dc2626",marginBottom:10}},error),
+      h("button",{key:"b",onClick:function(){ if(!name.trim()) { setError("Vul eerst je naam in."); return; } updateProfileField("displayName", name.trim()); nextWith({displayName:name.trim()}, 1); },style:{width:"100%",padding:"14px 16px",borderRadius:14,border:"none",background:"#ea580c",color:"white",fontWeight:700,fontSize:15,cursor:"pointer",boxShadow:"0 10px 24px rgba(234,88,12,0.18)"}},"Verder")
+    ]);
+  }
+
+  if (onboardingStep === 1) {
+    var goals = ["5 km","10 km","15 km","21 km","30 km","42 km","80 km ultra"];
+    return wrap([
+      h("div",{key:"h",style:{fontSize:26,fontWeight:800,letterSpacing:"-0.03em",marginBottom:8}},"Waar train je naartoe?"),
+      h("div",{key:"s",style:{fontSize:14,color:"#64748b",lineHeight:1.6,marginBottom:18}},"Kies het plan dat bij je doel past."),
+      h("div",{key:"opts"}, goals.map(function(item){ return optionButton(item, goal===item, function(){setGoal(item);}); })),
+      h("div",{key:"btns",style:{display:"flex",gap:10,marginTop:8}},
+        h("button",{onClick:function(){ setOnboardingStep(0); },style:{flex:1,padding:"13px 14px",borderRadius:14,border:"1px solid #e2e8f0",background:"white",color:"#475569",fontWeight:700,boxShadow:"none"}},"Terug"),
+        h("button",{onClick:function(){ updateProfileField("goalDistance", goal); nextWith({goalDistance:goal}, 2); },style:{flex:1,padding:"13px 14px",borderRadius:14,border:"none",background:"#ea580c",color:"white",fontWeight:700,boxShadow:"0 10px 24px rgba(234,88,12,0.18)"}},"Verder")
+      )
+    ]);
+  }
+
+  if (onboardingStep === 2) {
+    var levels = [
+      "Ik begin net",
+      "Ik loop af en toe",
+      "Ik loop regelmatig",
+      "Ik train al serieus"
+    ];
+    return wrap([
+      h("div",{key:"h",style:{fontSize:26,fontWeight:800,letterSpacing:"-0.03em",marginBottom:8}},"Hoeveel loop je nu al?"),
+      h("div",{key:"s",style:{fontSize:14,color:"#64748b",lineHeight:1.6,marginBottom:18}},"Zo schatten we je startpunt beter in."),
+      h("div",{key:"opts"}, levels.map(function(item){ return optionButton(item, level===item, function(){setLevel(item);}); })),
+      h("div",{key:"btns",style:{display:"flex",gap:10,marginTop:8}},
+        h("button",{onClick:function(){ setOnboardingStep(1); },style:{flex:1,padding:"13px 14px",borderRadius:14,border:"1px solid #e2e8f0",background:"white",color:"#475569",fontWeight:700,boxShadow:"none"}},"Terug"),
+        h("button",{onClick:function(){ if(!level) { setError("Kies eerst een niveau."); return; } updateProfileField("experienceLevel", level); nextWith({experienceLevel:level}, 3); },style:{flex:1,padding:"13px 14px",borderRadius:14,border:"none",background:"#ea580c",color:"white",fontWeight:700,boxShadow:"0 10px 24px rgba(234,88,12,0.18)"}},"Verder")
+      ),
+      error && h("div",{key:"e",style:{fontSize:12,color:"#dc2626",marginTop:10}},error)
+    ]);
+  }
+
+  if (onboardingStep === 3) {
+    return wrap([
+      h("div",{key:"h",style:{fontSize:26,fontWeight:800,letterSpacing:"-0.03em",marginBottom:8}},"Wil je Strava koppelen?"),
+      h("div",{key:"s",style:{fontSize:14,color:"#64748b",lineHeight:1.6,marginBottom:18}},"Dan halen we je runs automatisch binnen."),
+      h("div",{key:"box",style:{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:16,padding:14,marginBottom:16,fontSize:13,color:"#475569",lineHeight:1.6}},
+        cfg && cfg.stravaClientId ? "Je kunt nu koppelen en straks verder." : "Voeg eerst STRAVA_CLIENT_ID toe in Netlify om koppelen te tonen."
+      ),
+      h("button",{key:"a",onClick:function(){ startStravaConnect(); },disabled:connecting || !(cfg && cfg.stravaClientId),style:{width:"100%",padding:"14px 16px",borderRadius:14,border:"none",background:(cfg && cfg.stravaClientId) ? "#fc4c02" : "#cbd5e1",color:"white",fontWeight:700,fontSize:15,cursor:(cfg && cfg.stravaClientId) ? "pointer":"not-allowed",boxShadow:"0 10px 24px rgba(252,76,2,0.18)",marginBottom:10}},connecting?"Bezig...":"Koppel Strava"),
+      h("button",{key:"skip",onClick:function(){ nextWith({stravaConnected:false}, 4); },style:{width:"100%",padding:"13px 14px",borderRadius:14,border:"1px solid #e2e8f0",background:"white",color:"#475569",fontWeight:700,boxShadow:"none",marginBottom:10}},"Later"),
+      h("button",{key:"back",onClick:function(){ setOnboardingStep(2); },style:{width:"100%",padding:"13px 14px",borderRadius:14,border:"1px solid #e2e8f0",background:"white",color:"#475569",fontWeight:700,boxShadow:"none"}},"Terug")
+    ]);
+  }
+
+  return wrap([
+    h("div",{key:"h",style:{fontSize:26,fontWeight:800,letterSpacing:"-0.03em",marginBottom:8}},"Wanneer start je?"),
+    h("div",{key:"s",style:{fontSize:14,color:"#64748b",lineHeight:1.6,marginBottom:18}},"Dan zetten we je schema meteen goed."),
+    h("input",{key:"i",type:"date",value:start,onChange:function(e){setStart(e.target.value);},style:{width:"100%",padding:"14px 15px",borderRadius:14,border:"1px solid #cbd5e1",fontSize:15,marginBottom:14}}),
+    error && h("div",{key:"e",style:{fontSize:12,color:"#dc2626",marginBottom:10}},error),
+    h("div",{key:"btns",style:{display:"flex",gap:10}},
+      h("button",{onClick:function(){ setOnboardingStep(3); },style:{flex:1,padding:"13px 14px",borderRadius:14,border:"1px solid #e2e8f0",background:"white",color:"#475569",fontWeight:700,boxShadow:"none"}},"Terug"),
+      h("button",{onClick:function(){
+        if(!start) { setError("Kies eerst je startdatum."); return; }
+        updateProfileField("startDate", start);
+        saveProfilePatch({startDate:start,onboardingDone:true}).then(function(){ setOnboardingStep(-1); });
+      },style:{flex:1,padding:"13px 14px",borderRadius:14,border:"none",background:"#ea580c",color:"white",fontWeight:700,boxShadow:"0 10px 24px rgba(234,88,12,0.18)"}},"Start programma")
+    )
+  ]);
+}
+
+
+function ProfileTab(props) {
+  var user=props.user, profile=props.profile, profileLoad=props.profileLoad, profileSaving=props.profileSaving, profileErr=props.profileErr, updateProfileField=props.updateProfileField, saveProfilePatch=props.saveProfilePatch;
+  var inputStyle = {width:"100%",padding:"12px 13px",borderRadius:12,border:"1px solid #cbd5e1",fontSize:14,background:"white",appearance:"none",WebkitAppearance:"none"};
+  function field(label, key, placeholder, type) {
+    return h("div",{style:{marginBottom:12}},
+      h("label",{style:{display:"block",fontSize:12,fontWeight:700,color:"#475569",marginBottom:6}},label),
+      h("input",{type:type||"text",value:profile[key]||"",placeholder:placeholder||"",onChange:function(e){updateProfileField(key,e.target.value);},style:inputStyle})
+    );
+  }
+  return h("div",null,
+    h("div",{style:{background:"linear-gradient(180deg,#ffffff 0%,#f8fafc 100%)",border:"1px solid #e2e8f0",borderRadius:18,padding:18,marginBottom:16,boxShadow:"0 14px 34px rgba(15,23,42,0.06)"}},
+      h("div",{style:{display:"flex",alignItems:"center",gap:12,marginBottom:12}},
+        profile.photoURL ? h("img",{src:profile.photoURL,style:{width:56,height:56,borderRadius:"50%",objectFit:"cover"}}) : h("div",{style:{width:56,height:56,borderRadius:"50%",background:"#fff7ed",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}},"👤"),
+        h("div",null,
+          h("div",{style:{fontSize:20,fontWeight:800,letterSpacing:"-0.03em"}},profile.displayName || user.displayName || "Jouw profiel"),
+          h("div",{style:{fontSize:13,color:"#64748b",marginTop:4}},profile.email || user.email || "")
+        )
+      ),
+      h("div",{style:{fontSize:13,color:"#475569",lineHeight:1.6}},"Hier bewaar je wat de app over jou mag onthouden.")
+    ),
+    profileLoad && h("div",{style:{fontSize:13,color:"#64748b",marginBottom:12}},"Profiel laden..."),
+    field("Naam","displayName","Je naam"),
+    field("Startdatum","startDate","", "date"),
+    h("div",{style:{marginBottom:12}},
+      h("label",{style:{display:"block",fontSize:12,fontWeight:700,color:"#475569",marginBottom:6}},"Doel"),
+      h("select",{value:profile.goalDistance||"80 km ultra",onChange:function(e){updateProfileField("goalDistance",e.target.value);},style:inputStyle},
+        h("option",{value:"21 km"},"21 km"),
+        h("option",{value:"42 km"},"42 km"),
+        h("option",{value:"80 km ultra"},"80 km ultra")
+      )
+    ),
+    h("div",{style:{marginBottom:12}},
+      h("label",{style:{display:"block",fontSize:12,fontWeight:700,color:"#475569",marginBottom:6}},"Niveau"),
+      h("select",{value:profile.experienceLevel||"",onChange:function(e){updateProfileField("experienceLevel",e.target.value);},style:inputStyle},
+        h("option",{value:""},"Kies je niveau"),
+        h("option",{value:"Ik begin net"},"Ik begin net"),
+        h("option",{value:"Ik loop af en toe"},"Ik loop af en toe"),
+        h("option",{value:"Ik loop regelmatig"},"Ik loop regelmatig"),
+        h("option",{value:"Ik train al serieus"},"Ik train al serieus")
+      )
+    ),
+    field("Voorkeursdagen","preferredDays","Bijv. di, do, zo"),
+    h("div",{style:{marginBottom:12}},
+      h("label",{style:{display:"block",fontSize:12,fontWeight:700,color:"#475569",marginBottom:6}},"Notities"),
+      h("textarea",{value:profile.notes||"",placeholder:"Bijv. gevoelige knie, liever ochtendruns",onChange:function(e){updateProfileField("notes",e.target.value);},style:{width:"100%",minHeight:110,padding:"12px 13px",borderRadius:12,border:"1px solid #cbd5e1",fontSize:14,background:"white",resize:"vertical",fontFamily:"inherit"}})
+    ),
+    h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}},
+      h("div",{style:{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:14,padding:14}},
+        h("div",{style:{fontSize:11,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}},"Account"),
+        h("div",{style:{fontSize:14,fontWeight:700}},user.providerData && user.providerData[0] && user.providerData[0].providerId === "password" ? "E-mail" : "Google")
+      ),
+      h("div",{style:{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:14,padding:14}},
+        h("div",{style:{fontSize:11,color:"#64748b",fontWeight:700,textTransform:"uppercase",letterSpacing:0.8,marginBottom:6}},"Strava"),
+        h("div",{style:{fontSize:14,fontWeight:700}},profile.stravaConnected ? "Gekoppeld" : "Nog niet gekoppeld")
+      )
+    ),
+    profileErr && h("div",{style:{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:12,padding:12,fontSize:12,color:"#991b1b",marginBottom:12}},profileErr),
+    h("button",{onClick:function(){saveProfilePatch({onboardingDone:true});},disabled:profileSaving,style:{width:"100%",padding:"12px 14px",borderRadius:12,border:"none",background:"#ea580c",color:"white",fontWeight:700,fontSize:14,cursor:"pointer",boxShadow:"0 10px 24px rgba(234,88,12,0.18)"}},profileSaving?"Opslaan...":"Profiel opslaan")
+  );
+}
+
+function StravaTab(props) {
+  var strava=props.strava,cfg=props.cfg,startStravaConnect=props.startStravaConnect,connecting=props.connecting,strErr=props.strErr,activities=props.activities,clearStravaState=props.clearStravaState;
+  if (strava) return h("div",null,
+    h("div",{style:{background:"#dcfce7",border:"1px solid #bbf7d0",borderRadius:12,padding:20,textAlign:"center",marginBottom:20}},
+      h("div",{style:{fontSize:32,marginBottom:8}},"✅"),
+      h("div",{style:{fontWeight:700,fontSize:17}},"Strava gekoppeld"),
+      h("div",{style:{fontSize:12,color:"#888",marginTop:6}},activities.length+" activiteiten gesynchroniseerd")
+    ),
+    h("button",{onClick:clearStravaState,style:{width:"100%",padding:"10px",borderRadius:10,border:"1px solid #fca5a5",background:"white",color:"#dc2626",fontSize:13,cursor:"pointer"}},"Koppel los")
+  );
+  return h("div",null,
+    h("p",{style:{fontSize:13,color:"#555",lineHeight:1.7,marginTop:0}},"Koppel Strava. Je geheime sleutel blijft veilig op Netlify."),
+    h("div",{style:{background:"#f9fafb",border:"1px solid #eee",borderRadius:12,padding:14,marginBottom:16,fontSize:12,lineHeight:1.8}},
+      h("strong",null,"Status")," — ", cfg && cfg.stravaClientId ? "Strava client ID gevonden." : "Nog geen STRAVA_CLIENT_ID in Netlify."
+    ),
+    h("button",{onClick:startStravaConnect,disabled:connecting || !(cfg && cfg.stravaClientId),style:{width:"100%",padding:"11px",borderRadius:10,border:"none",background:(connecting || !(cfg && cfg.stravaClientId))?"#ccc":"#ea580c",color:"white",fontSize:14,fontWeight:700,cursor:(connecting || !(cfg && cfg.stravaClientId))?"not-allowed":"pointer"}},connecting?"Bezig...":"Koppel Strava"),
+    strErr && h("div",{style:{background:"#fef2f2",border:"1px solid #fca5a5",borderRadius:10,padding:12,marginTop:12,fontSize:12,color:"#dc2626"}},strErr)
+  );
+}
+
+try {
+  ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+} catch (e) {
+  console.error(e);
+  document.getElementById("root").innerHTML = '<div style="padding:24px;font-family:Inter,-apple-system,sans-serif;color:#0f172a"><h2 style="margin-bottom:8px">Dat ging mis.</h2><p style="color:#475569;line-height:1.6">De app kon niet starten. Vernieuw de pagina. Blijft dit gebeuren, upload dan de laatste build opnieuw.</p></div>';
+}
+</script>
+</body>
+</html>

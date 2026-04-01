@@ -1,0 +1,10 @@
+{
+  "name": "ultra-trainer-secure-netlify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Secure Netlify deployment for Ultra Trainer",
+  "dependencies": {
+    "jose": "^5.9.6",
+    "@netlify/blobs": "^9.0.1"
+  }
+}
