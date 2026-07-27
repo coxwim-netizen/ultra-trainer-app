@@ -1,0 +1,467 @@
+:root {
+  color-scheme: light;
+
+  /* Main interface theme: parchment, stone, crystal */
+  --parchment: #f7ecd8;
+  --parchment-dark: #e8d7b3;
+  --stone: #8d7b68;
+  --stone-dark: #5c4f42;
+  --ink: #3a2f26;
+  --crystal: #7c3aed;
+  --crystal-light: #c4b5fd;
+  --gold: #f5b942;
+  --success: #2f9e44;
+  --focus-ring: #1d4ed8;
+
+  --shadow-soft: 0 10px 25px rgba(58, 47, 38, 0.18);
+  --radius-lg: 28px;
+  --radius-md: 18px;
+  --radius-sm: 12px;
+
+  /* Dragon Cave: warm orange, red, purple */
+  --theme-a: #ff8a3d;
+  --theme-b: #e0393f;
+  --theme-c: #6d28d9;
+
+  font-family: 'Baloo 2', 'Comic Sans MS', 'Segoe UI Rounded', system-ui, -apple-system, sans-serif;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.theme-drakengrot {
+  --theme-a: #ff8a3d;
+  --theme-b: #e0393f;
+  --theme-c: #6d28d9;
+  --theme-bg: linear-gradient(120deg, #fff1e2, #f3e4fb);
+}
+.theme-arendsberg {
+  --theme-a: #38bdf8;
+  --theme-b: #ffffff;
+  --theme-c: #f5b942;
+  --theme-bg: linear-gradient(120deg, #e6f6ff, #fff8e2);
+}
+.theme-ninjabos {
+  --theme-a: #1e3a5f;
+  --theme-b: #16a34a;
+  --theme-c: #22d3ee;
+  --theme-bg: linear-gradient(120deg, #e3f7f5, #e7f0ff);
+}
+
+.location-card {
+  border: 3px solid var(--theme-a);
+  background: var(--theme-bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  min-height: 100svh;
+  background: linear-gradient(160deg, var(--parchment), var(--parchment-dark));
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+.app-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+  padding: clamp(12px, 3vw, 28px);
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 64px;
+  padding: 16px 28px;
+  border-radius: var(--radius-lg);
+  border: none;
+  font-size: 1.25rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: white;
+  background: var(--crystal);
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  touch-action: manipulation;
+}
+
+.btn:hover {
+  transform: translateY(-2px);
+}
+
+.btn:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.btn:focus-visible {
+  outline: 4px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.btn-primary {
+  background: linear-gradient(160deg, var(--gold), #e0932a);
+  color: var(--ink);
+}
+
+.btn-secondary {
+  background: var(--stone);
+}
+
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--ink);
+  border: 2px solid var(--stone);
+}
+
+.btn-large {
+  min-height: 84px;
+  font-size: 1.5rem;
+  padding: 20px 36px;
+  border-radius: 32px;
+}
+
+.btn-round {
+  min-height: 56px;
+  min-width: 56px;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ---------- Cards ---------- */
+
+.card {
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: var(--radius-lg);
+  padding: clamp(16px, 4vw, 32px);
+  box-shadow: var(--shadow-soft);
+}
+
+.option-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 120px;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 4px solid transparent;
+  background: linear-gradient(160deg, #ffffff, #f1e7d3);
+  box-shadow: var(--shadow-soft);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+  touch-action: manipulation;
+}
+
+.option-card:hover {
+  transform: translateY(-3px);
+}
+
+.option-card:focus-visible {
+  outline: 4px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.option-card[data-state='correct'] {
+  border-color: var(--success);
+}
+
+.option-card[data-state='incorrect'] {
+  border-color: var(--theme-b);
+  animation: shake 0.4s ease;
+}
+
+.option-card[data-state='correct']::after {
+  content: '✓ Juist!';
+  font-size: 0.9rem;
+  color: var(--success);
+}
+
+.option-card[data-state='incorrect']::after {
+  content: '↺ Probeer opnieuw';
+  font-size: 0.85rem;
+  color: var(--theme-b);
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .options-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Layout helpers ---------- */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.row-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.center-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 20px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- Crystal / progress display ---------- */
+
+.crystal-tracker {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.crystal-slot {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  background: rgba(255, 255, 255, 0.5);
+  border: 3px dashed var(--stone);
+}
+
+.crystal-slot[data-filled='true'] {
+  border-style: solid;
+  border-color: var(--gold);
+  background: radial-gradient(circle, #fff7e0, #f5d98a);
+  animation: glow 2.2s ease-in-out infinite;
+}
+
+.progress-dots {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.progress-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.progress-dot[data-done='true'] {
+  background: var(--crystal);
+}
+
+.progress-dot[data-current='true'] {
+  outline: 3px solid var(--gold);
+  outline-offset: 2px;
+}
+
+/* ---------- Animations ---------- */
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-8px);
+  }
+  40% {
+    transform: translateX(8px);
+  }
+  60% {
+    transform: translateX(-6px);
+  }
+  80% {
+    transform: translateX(6px);
+  }
+}
+
+@keyframes glow {
+  0%,
+  100% {
+    box-shadow: 0 0 6px 2px rgba(245, 185, 66, 0.5);
+  }
+  50% {
+    box-shadow: 0 0 16px 6px rgba(245, 185, 66, 0.85);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes flap {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(-12deg);
+  }
+}
+
+@keyframes flicker {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scaleY(0.85);
+  }
+}
+
+@keyframes sparkle-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.2) rotate(90deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.6) rotate(180deg);
+  }
+}
+
+.idle-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.idle-flap {
+  animation: flap 1.6s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.idle-flicker {
+  animation: flicker 1.2s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.sparkle-layer {
+  position: relative;
+  pointer-events: none;
+}
+
+.sparkle {
+  position: absolute;
+  font-size: 1.4rem;
+  animation: sparkle-pop 1.1s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------- Misc ---------- */
+
+.badge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
+  box-shadow: var(--shadow-soft);
+}
+
+a {
+  color: inherit;
+}

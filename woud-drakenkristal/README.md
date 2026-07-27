@@ -1,0 +1,180 @@
+# Woud en het Drakenkristal 🐉💎
+
+Een leuk leeravontuur voor kinderen in het eerste leerjaar (6 jaar), gebouwd met
+React, TypeScript en Vite. Geen login, geen backend, geen reclame — alle
+voortgang wordt lokaal in de browser bewaard.
+
+**Verhaal:** het Drakenkristal is in drie stukken gebroken. Woud (de held)
+reist naar de Drakengrot, Arendsberg en het Ninjabos, lost daar telkens een
+korte oefening op en verzamelt zo de drie kristalstukken.
+
+## Snel starten
+
+```bash
+npm install
+npm run dev
+```
+
+Open de getoonde `localhost`-link in de browser. Werkt op desktop, laptop,
+tablet en telefoon.
+
+Andere scripts:
+
+```bash
+npm run build     # productie-build (typecheck + vite build)
+npm run preview   # bekijk de productie-build lokaal
+npm run test      # voer de automatische tests uit
+npm run lint      # oxlint
+```
+
+## Projectstructuur
+
+```
+src/
+  types.ts                  # Gedeelde TypeScript-types (Question, LocationInfo, ProgressState, ...)
+  data/                     # Alle inhoud (geen hardcoded teksten in de UI)
+    locations.ts            # De 3 locaties + badges
+    mathQuestions.ts         # Optel/aftrek-vragenbank (Drakengrot)
+    readingQuestions.ts     # Leesvragenbank + scène-illustraties (Arendsberg)
+    letterQuestions.ts      # Letter/woord-vragenbank + woordenlijst (Ninjabos)
+    index.ts                # Verzamelt alle vragenbanken per categorie
+  state/
+    progressStore.ts        # localStorage lezen/schrijven
+    GameContext.tsx          # React context: huidig scherm + voortgang + acties
+  hooks/
+    useExerciseSession.ts    # Herbruikbare oefen-logica (5 vragen, pogingen, feedback, help)
+    useSpeech.ts             # Nederlandse spraaksynthese (voorlezen + herhalen)
+    useSound.ts              # Lichte geluidseffecten via de Web Audio API
+  components/
+    characters/              # Vonk, Arend, Kage, Woud als originele SVG-tekeningen
+    common/                  # Herbruikbare UI: knoppen, kristallen, sterretjes, modaal, ...
+    exercises/                # ExerciseShell (gedeelde lay-out) + de 3 oefeningen
+    screens/                  # Start, naam, kaart, oefenscherm, beloning, overwinning, ouders
+  utils/random.ts             # Kies 5 willekeurige vragen per sessie
+  App.tsx                     # Schermrouter (eenvoudige state machine, geen library nodig)
+```
+
+Alle inhoud (vragen, teksten, badges) staat in `src/data/`, niet verspreid in
+de componenten. Dat maakt het makkelijk om later niveaus, locaties of talen
+toe te voegen zonder de UI aan te raken.
+
+## Een vierde oefening toevoegen
+
+1. **Type:** voeg de nieuwe categorie toe aan `ExerciseCategory` in `src/types.ts`
+   (bv. `'shapes'`).
+2. **Data:** maak `src/data/shapesQuestions.ts` met een array van `Question`-
+   objecten (zelfde vorm als de andere vragenbanken) en exporteer die.
+3. **Registreer de vragenbank:** voeg de nieuwe bank toe aan `QUESTION_BANKS`
+   in `src/data/index.ts`.
+4. **Locatie:** voeg een nieuwe `LocationInfo` toe aan `LOCATIONS` in
+   `src/data/locations.ts` (naam, gids, badge, kristalnaam, themaklasse) en een
+   bijpassende badge aan `BADGES`.
+5. **Component:** maak `src/components/exercises/ShapesExercise.tsx`. Gebruik
+   `useExerciseSession('shapes', onSessionFinished)` voor de logica en
+   `<ExerciseShell>` voor de vaste lay-out (locatienaam, gids, audio-knop,
+   voortgang, hulpknop, feedback). Kijk naar `MathExercise.tsx` als voorbeeld.
+6. **Routering:** voeg de nieuwe categorie toe in `ExerciseScreen.tsx` zodat
+   die naar het juiste component verwijst.
+7. **(optioneel) Personage:** teken een nieuw personage als SVG-component in
+   `src/components/characters/`, in dezelfde stijl als de bestaande figuren.
+8. **Thema:** voeg een `.theme-<naam>` blok toe in `src/index.css` met eigen
+   kleuren, zoals bij `.theme-drakengrot`.
+
+Een nieuw CSS-thema en badge zijn optioneel — zonder aanpassing valt de nieuwe
+locatie terug op de bestaande stijl.
+
+## Meer vragen toevoegen
+
+Open het juiste bestand in `src/data/` en voeg een item toe aan de
+`TEMPLATES`-array:
+
+- **Rekenen** (`mathQuestions.ts`): voeg `{ a, b, operator: '+' | '-', decoys: [x, y] }`
+  toe. Zorg dat het antwoord tussen 0 en 10 blijft.
+- **Lezen** (`readingQuestions.ts`): voeg een korte zin toe (max. ~6 woorden),
+  het woord om te markeren bij een fout antwoord, en drie scène-ID's uit
+  `READING_SCENES` (of voeg zelf een nieuwe scène toe aan die lijst).
+- **Letters/woorden** (`letterQuestions.ts`): voeg een woord toe aan
+  `WORD_BANK` (met emoji en eerste letter) en gebruik het in een `letter`- of
+  `word`-template.
+
+Elke sessie kiest automatisch 5 willekeurige vragen uit de volledige bank
+(`QUESTIONS_PER_SESSION` in `src/data/index.ts`), dus meer vragen toevoegen
+zorgt vanzelf voor meer variatie.
+
+## Assets
+
+Er worden geen externe afbeeldingen of lettertypes van het internet geladen —
+dat voorkomt dat het spel offline of later kapot gaat.
+
+- **Personages en illustraties:** eigen, originele SVG-tekeningen, rechtstreeks
+  als React-componenten geschreven (`src/components/characters/`). Geen
+  bestaande personages of merken nagemaakt.
+- **Scène- en woordplaatjes:** standaard Unicode-emoji, gecombineerd in kaarten
+  (`READING_SCENES`, `WORD_BANK`). Werkt overal zonder afbeeldingen te laden.
+- **Geluid:** korte toontjes gegenereerd met de Web Audio API
+  (`src/hooks/useSound.ts`) — geen geluidsbestanden nodig.
+- **Stem:** de browser-eigen Speech Synthesis API leest instructies voor in
+  het Nederlands (`src/hooks/useSpeech.ts`), indien de browser dat ondersteunt.
+- **Lettertype:** systeemlettertypes (`Baloo 2`/`Comic Sans MS`/rounded
+  system-ui als terugval) — geen lettertype-bestanden nodig.
+
+## Automatische tests
+
+Er is een basistest per oefentype in `src/components/exercises/`:
+
+- `MathExercise.test.tsx`
+- `ReadingExercise.test.tsx`
+- `LetterExercise.test.tsx`
+
+Elke test rondt een volledige sessie van 5 vragen af (het juiste antwoord
+wordt afgeleid uit de vragenbank, niet hardgecodeerd) en controleert dat de
+sessie correct wordt afgesloten. De wiskundetest controleert ook dat een fout
+antwoord de voortgang niet reset en dat een nieuwe poging mogelijk blijft.
+
+```bash
+npm run test
+```
+
+## Handmatige testchecklist voor ouders
+
+Gebruik dit lijstje om snel te controleren of alles goed werkt na het starten
+van `npm run dev`:
+
+- [ ] Startscherm toont de titel en een grote "Start avontuur"-knop.
+- [ ] Naamscherm onthoudt de ingevoerde naam (herlaad de pagina en start
+      opnieuw — de naam staat nog in het instellingenmenu/oudergebied).
+- [ ] Op de avontuurkaart zijn alle drie de locaties aanklikbaar, ook zonder
+      volgorde te moeten volgen.
+- [ ] In de Drakengrot toont elke vraag kristallen die overeenkomen met het
+      getal, en leidt een fout antwoord tot een nieuwe poging (geen
+      "Fout"-melding, geen verloren levens).
+- [ ] Op Arendsberg speelt de audio-knop de zin voor (indien de browser dit
+      ondersteunt) en kies je uit drie plaatjes.
+- [ ] In het Ninjabos wissel je tussen "welke letter" en "welk woord"-vragen.
+- [ ] De "Help mij"-knop werkt in alle drie de oefeningen en geeft een
+      duidelijke hint zonder het antwoord meteen te verklappen.
+- [ ] Na 5 vragen verschijnt het beloningsscherm met het kristalstuk, de badge
+      en sterretjes, en brengt "Terug naar de kaart" je terug.
+- [ ] Een locatie is opnieuw speelbaar nadat hij al voltooid is.
+- [ ] Na alle drie de locaties verschijnt het overwinningsscherm met de naam
+      van het kind en de drie badges.
+- [ ] Het geluid-aan/uit-knopje en het instellingenmenu werken vanaf het
+      startscherm.
+- [ ] Het oudergebied (instellingen ingedrukt houden gedurende 3 seconden)
+      toont voortgang in vriendelijke taal, zonder cijfers of rode
+      waarschuwingen.
+- [ ] "Wis voortgang" (in instellingen én in het oudergebied) vraagt eerst om
+      bevestiging voor het echt alles wist.
+- [ ] Alles blijft goed leesbaar en aanklikbaar op een telefoon- en
+      tabletformaat (test via de browser devtools of een echt toestel).
+- [ ] Sluit de browser en open de pagina opnieuw: de voortgang (badges,
+      kristallen) is bewaard.
+
+## Beperkingen van deze eerste versie
+
+- Eén moeilijkheidsgraad; het datamodel (`difficulty: 1 | 2 | 3`) is al
+  voorbereid op extra niveaus later.
+- Spraaksynthese en de aangeboden Nederlandse stem hangen af van wat de
+  browser/het besturingssysteem ondersteunt; op sommige apparaten is er geen
+  Nederlandse stem beschikbaar en blijft de audio-knop uitgeschakeld.
+- Geen accountsysteem: voortgang is gebonden aan één browser op één toestel.
