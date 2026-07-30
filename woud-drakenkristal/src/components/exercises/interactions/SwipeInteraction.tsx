@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { stateFor, type AnswerStageProps } from './types'
+import { keyboardOnlyActivation, stateFor, type AnswerStageProps } from './types'
 
 const SWIPE_THRESHOLD = 55
 
@@ -57,7 +57,7 @@ export function SwipeInteraction({
               data-state={state}
               disabled={disabled}
               aria-label={ariaLabel(option)}
-              onClick={() => onSubmit(option.id)}
+              onClick={keyboardOnlyActivation(() => onSubmit(option.id))}
               onPointerDown={(e) => handlePointerDown(e, option.id)}
               onPointerMove={(e) => handlePointerMove(e, option.id)}
               onPointerUp={() => handlePointerUp(option.id)}

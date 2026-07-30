@@ -42,8 +42,6 @@ export interface LocationInfo {
   crystalName: string
   crystalEmoji: string
   themeClass: string
-  /** Emoji marker shown on the adventure map at this location's waypoint. */
-  mapIcon: string
   /** Position of this location's waypoint on the map, in percentages. */
   mapPosition: { x: number; y: number }
 }

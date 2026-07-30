@@ -8,12 +8,15 @@ voortgang wordt lokaal in de browser bewaard.
 reist naar de Drakengrot, Arendsberg en het Ninjabos, lost daar telkens een
 korte oefening op en verzamelt zo de drie kristalstukken.
 
-De avontuurkaart is een echte piratenkaart: een gestippeld pad verbindt de
-drie plekken. De eerste plek staat altijd open; een volgende plek ontgrendelt
-pas zodra de vorige is afgerond (al voltooide plekken blijven wel altijd
-opnieuw speelbaar). Na een geslaagde oefening kraakt er een drakenei open op
-de kaart, wandelt Woud naar de volgende plek, en barst er vuurwerk los — met
-nog groter vuurwerk op het uiteindelijke overwinningsscherm.
+De avontuurkaart is een eilandenketen op zee: drie genummerde eilanden
+(1, 2, 3), elk met hun eigen illustratie (grot, sneeuwberg, ninjabos),
+verbonden door een gestippeld pad. Level 1 staat altijd open; een volgend
+level ontgrendelt pas zodra het vorige is afgerond (al voltooide levels
+blijven wel altijd opnieuw speelbaar — herkenbaar aan het sterretje, terwijl
+nog gesloten levels een hangslotje tonen). Na een geslaagde oefening kraakt
+er een drakenei open op de kaart, wandelt Woud naar het volgende eiland, en
+barst er vuurwerk los — met nog groter vuurwerk op het uiteindelijke
+overwinningsscherm.
 
 ## Snel starten
 
@@ -72,8 +75,8 @@ Antwoorden kiezen is meer dan klikken. Elke sessie van 5 vragen doorloopt een
 willekeurige volgorde van **5 verschillende mechanismen** — telkens 1 per
 vraag, dus elke sessie gebruikt ze allemaal, in een andere volgorde:
 
-- **Gooien** — tik om een sterretje te gooien; het juiste antwoord "valt om"
-  als een kegel.
+- **Gooien** — sleep het sterretje naar het juiste antwoord; het "valt om" als
+  een kegel.
 - **Slepen** — sleep het antwoord naar het karakter (Vonk / Arend's nest /
   Kage's poort).
 - **Vangen** — de drie antwoorden zweven zachtjes; tik het juiste antwoord
@@ -87,11 +90,15 @@ eigen component (`DragInteraction.tsx`, `ThrowInteraction.tsx`, ...) achter
 kiest welk component getoond wordt. `useExerciseSession` bepaalt de volgorde
 per sessie (`currentInteraction`) door de 5 mechanismen te schudden.
 
-**Toegankelijkheid:** onder elk mechanisme zit gewoon een echte `<button>`.
-Slepen, vegen en verbinden reageren op aanraking/muis-gestures, maar een
-gewone klik of Enter/spatie (toetsenbord, schermlezer) selecteert het
-antwoord altijd direct — niemand wordt uitgesloten van het spel omdat ze geen
-muis of aanraakscherm gebruiken.
+**De gestures zijn verplicht, geen decoratie.** Met een muis of vinger volstaat
+een gewone tik niet bij gooien, slepen, wegvegen en verbinden — je moet de
+beweging echt uitvoeren (behalve bij vangen, waar tikken op het bewegende
+antwoord zelf de bedoelde actie is). Dat zit in `keyboardOnlyActivation()` in
+`types.ts`: browsers geven een klik die ontstaat via Enter/spatie op het
+toetsenbord `detail: 0`, terwijl een echte muis- of tikklik `detail: 1+`
+krijgt. Zo kan hetzelfde antwoord toch altijd direct met het toetsenbord of
+een schermlezer gekozen worden — dat blijft de toegankelijke sneltoets — zonder
+dat een muis- of touchgebruiker de gewenste beweging kan overslaan.
 
 Een nieuwe oefening (zie hieronder) krijgt deze 5 mechanismen automatisch
 door `<AnswerStage>` te gebruiken in plaats van zelf knoppen te tekenen.
@@ -149,6 +156,9 @@ dat voorkomt dat het spel offline of later kapot gaat.
 - **Personages en illustraties:** eigen, originele SVG-tekeningen, rechtstreeks
   als React-componenten geschreven (`src/components/characters/`). Geen
   bestaande personages of merken nagemaakt.
+- **Eilanden op de avontuurkaart:** eigen SVG-illustraties in dezelfde stijl
+  (`src/components/map/`) — geen bestaande kaart-app of illustratiestijl
+  gekopieerd.
 - **Scène- en woordplaatjes:** standaard Unicode-emoji, gecombineerd in kaarten
   (`READING_SCENES`, `WORD_BANK`). Werkt overal zonder afbeeldingen te laden.
 - **Geluid:** korte toontjes gegenereerd met de Web Audio API
@@ -189,16 +199,20 @@ van `npm run dev`:
 - [ ] Startscherm toont de titel en een grote "Start avontuur"-knop.
 - [ ] Naamscherm onthoudt de ingevoerde naam (herlaad de pagina en start
       opnieuw — de naam staat nog in het instellingenmenu/oudergebied).
-- [ ] Op de avontuurkaart is alleen Drakengrot in het begin open; Arendsberg
-      en Ninjabos tonen een slotje en zijn nog niet speelbaar.
+- [ ] Op de avontuurkaart toont elk eiland een nummer (1, 2, 3); alleen
+      eiland 1 (Drakengrot) is in het begin open, eiland 2 en 3 tonen een
+      hangslotje en zijn nog niet speelbaar.
 - [ ] Na het afronden van Drakengrot kraakt er een ei open op de kaart,
       wandelt Woud naar Arendsberg, en verschijnt er kort vuurwerk — daarna is
       Arendsberg ontgrendeld.
-- [ ] Een al voltooide plek blijft aanklikbaar en opnieuw speelbaar, ook nadat
-      een latere plek ontgrendeld is.
+- [ ] Een al voltooid eiland toont een sterretje, blijft aanklikbaar en
+      opnieuw speelbaar, ook nadat een later eiland ontgrendeld is.
 - [ ] Binnen één sessie van 5 vragen wisselt het antwoordmechanisme (gooien,
       slepen, vangen, wegvegen, verbinden) — en dus ook de plek van het juiste
       antwoord — telkens van vraag tot vraag.
+- [ ] Bij gooien, slepen, wegvegen en verbinden doet een gewone tik of klik
+      niets — je moet de sleep-/veeg-/lijnbeweging echt uitvoeren. Bij vangen
+      is tikken op het bewegende antwoord wel de bedoeling.
 - [ ] Elk mechanisme is ook met alleen het toetsenbord te bedienen (Tab +
       Enter/spatie op een antwoord selecteert het direct).
 - [ ] In de Drakengrot toont elke vraag kristallen die overeenkomen met het

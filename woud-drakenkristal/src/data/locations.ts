@@ -11,7 +11,6 @@ export const LOCATIONS: LocationInfo[] = [
     crystalName: 'Rode Drakensteen',
     crystalEmoji: '🔴',
     themeClass: 'theme-drakengrot',
-    mapIcon: '🕳️',
     mapPosition: { x: 16, y: 76 },
   },
   {
@@ -24,7 +23,6 @@ export const LOCATIONS: LocationInfo[] = [
     crystalName: 'Gouden Luchtsteen',
     crystalEmoji: '🟡',
     themeClass: 'theme-arendsberg',
-    mapIcon: '🗻',
     mapPosition: { x: 50, y: 26 },
   },
   {
@@ -37,7 +35,6 @@ export const LOCATIONS: LocationInfo[] = [
     crystalName: 'Blauwe Schaduwsteen',
     crystalEmoji: '🔵',
     themeClass: 'theme-ninjabos',
-    mapIcon: '🌲',
     mapPosition: { x: 82, y: 70 },
   },
 ]

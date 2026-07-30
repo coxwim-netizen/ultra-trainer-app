@@ -1,11 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { useGame } from '../../state/GameContext'
 import { LOCATIONS, getLocation, getFrontierLocation, isLocationUnlocked } from '../../data/locations'
 import { CrystalTracker } from '../common/CrystalTracker'
 import { EggHatch } from '../common/EggHatch'
 import { Fireworks } from '../common/Fireworks'
 import { Woud } from '../characters/Woud'
+import { DrakengrotIsland } from '../map/DrakengrotIsland'
+import { ArendsbergIsland } from '../map/ArendsbergIsland'
+import { NinjabosIsland } from '../map/NinjabosIsland'
 import type { LocationInfo } from '../../types'
+
+const ISLAND_ART: Record<string, (props: { size?: number }) => ReactElement> = {
+  drakengrot: DrakengrotIsland,
+  arendsberg: ArendsbergIsland,
+  ninjabos: NinjabosIsland,
+}
 
 function pathD(points: { x: number; y: number }[]): string {
   const [first, ...rest] = points
@@ -74,10 +83,11 @@ export function AdventureMap() {
           <path d={pathD(LOCATIONS.map((l) => l.mapPosition))} className="pirate-map__path-line" />
         </svg>
 
-        {LOCATIONS.map((location) => {
+        {LOCATIONS.map((location, index) => {
           const done = progress.completedLocations.includes(location.id)
           const unlocked = isLocationUnlocked(progress.completedLocations, location.id)
           const isFrontier = frontier?.id === location.id
+          const Island = ISLAND_ART[location.id]
 
           return (
             <button
@@ -97,22 +107,25 @@ export function AdventureMap() {
               }}
               aria-label={
                 unlocked
-                  ? `${location.name}${done ? ' (voltooid, opnieuw spelen)' : ''} — ${location.tagline}`
-                  : `${location.name} — nog gesloten`
+                  ? `Level ${index + 1}: ${location.name}${done ? ' (voltooid, opnieuw spelen)' : ''} — ${location.tagline}`
+                  : `Level ${index + 1}: ${location.name} — nog gesloten`
               }
             >
-              <span className="map-marker__icon" aria-hidden="true">
-                {location.mapIcon}
+              <span className="map-marker__number" aria-hidden="true">
+                {index + 1}
+              </span>
+              <span className="map-marker__island">
+                <Island size={100} />
+                {!unlocked && (
+                  <span className="map-marker__lock-overlay" aria-hidden="true">
+                    🔒
+                  </span>
+                )}
               </span>
               <span className="map-marker__label">{location.name}</span>
               {done && (
                 <span className="map-marker__badge" aria-hidden="true">
                   ⭐
-                </span>
-              )}
-              {!unlocked && (
-                <span className="map-marker__badge" aria-hidden="true">
-                  🔒
                 </span>
               )}
             </button>

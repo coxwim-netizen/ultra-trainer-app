@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { stateFor, type AnswerStageProps } from './types'
+import { keyboardOnlyActivation, stateFor, type AnswerStageProps } from './types'
 
 interface Point {
   x: number
@@ -104,7 +104,7 @@ export function ConnectInteraction({
                 data-hovered={hoveredId === option.id}
                 disabled={disabled}
                 aria-label={ariaLabel(option)}
-                onClick={() => onSubmit(option.id)}
+                onClick={keyboardOnlyActivation(() => onSubmit(option.id))}
               >
                 {renderOption(option)}
               </button>
