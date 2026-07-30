@@ -462,6 +462,178 @@ svg {
   box-shadow: var(--shadow-soft);
 }
 
+/* ---------- Interactive answer mechanics ---------- */
+
+.interaction-caption {
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: 0.85;
+  text-align: center;
+}
+
+/* Gooien: knock-over cones */
+
+.option-card--cone {
+  position: relative;
+}
+
+.throw-star {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  font-size: 1.4rem;
+  opacity: 0;
+}
+
+.option-card--cone[data-state] .throw-star {
+  animation: star-fly 0.5s ease-out;
+}
+
+.option-card--cone[data-state='correct'] {
+  animation: knockover 0.6s ease forwards;
+}
+
+@keyframes star-fly {
+  0% {
+    opacity: 1;
+    transform: scale(2) translate(30px, -30px) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translate(0, 0) rotate(180deg);
+  }
+}
+
+@keyframes knockover {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(85deg) translateY(10px);
+  }
+}
+
+/* Slepen: drag tile into a themed basket */
+
+.drag-target {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 20px;
+  border-radius: var(--radius-md);
+  border: 3px dashed var(--stone);
+  background: rgba(255, 255, 255, 0.5);
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.option-card--drag {
+  cursor: grab;
+}
+
+.option-card--drag:active {
+  cursor: grabbing;
+}
+
+/* Vangen: gently drifting targets */
+
+.option-card--catch-0 {
+  animation: drift-a 4.2s ease-in-out infinite;
+}
+.option-card--catch-1 {
+  animation: drift-b 3.6s ease-in-out infinite 0.3s;
+}
+.option-card--catch-2 {
+  animation: drift-c 4.8s ease-in-out infinite 0.6s;
+}
+
+@keyframes drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(6px, -10px) rotate(-2deg);
+  }
+}
+@keyframes drift-b {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-8px, -6px) rotate(2deg);
+  }
+}
+@keyframes drift-c {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(5px, 8px) rotate(-1deg);
+  }
+}
+
+/* Wegvegen: swipe tiles */
+
+.option-card--swipe {
+  cursor: grab;
+}
+
+.option-card--swipe:active {
+  cursor: grabbing;
+}
+
+/* Verbinden: draw a connecting line */
+
+.connect-stage {
+  position: relative;
+  width: 100%;
+}
+
+.connect-line-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.connect-line {
+  stroke: var(--crystal);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.connect-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: fit-content;
+  margin: 0 auto 16px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  border: 3px solid var(--crystal);
+  background: rgba(255, 255, 255, 0.7);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.connect-start:active {
+  cursor: grabbing;
+}
+
+.option-card[data-hovered='true'] {
+  border-color: var(--crystal);
+  transform: translateY(-3px) scale(1.03);
+}
+
 a {
   color: inherit;
 }

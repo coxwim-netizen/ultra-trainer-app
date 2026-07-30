@@ -6,6 +6,7 @@ import { ExerciseShell } from './ExerciseShell'
 import { Arend } from '../characters/Arend'
 import { getLocation } from '../../data/locations'
 import { READING_SCENES } from '../../data/readingQuestions'
+import { AnswerStage } from './interactions/AnswerStage'
 
 const location = getLocation('arendsberg')!
 
@@ -89,35 +90,28 @@ export function ReadingExercise({ onSessionFinished }: ReadingExerciseProps) {
         ))}
       </div>
 
-      <div className="options-grid" role="group" aria-label="Kies het juiste plaatje">
-        {question.options.map((option) => {
+      <AnswerStage
+        kind={session.currentInteraction}
+        options={question.options}
+        status={session.status}
+        selectedId={session.selectedId}
+        onSubmit={session.submit}
+        renderOption={(option) => {
           const scene = READING_SCENES[option.id]
-          const state =
-            session.selectedId === option.id
-              ? session.status === 'correct'
-                ? 'correct'
-                : session.status === 'wrong'
-                  ? 'incorrect'
-                  : undefined
-              : undefined
           return (
-            <button
-              key={option.id}
-              type="button"
-              className="option-card"
-              data-state={state}
-              onClick={() => session.submit(option.id)}
-              disabled={session.status !== 'idle'}
-              aria-label={scene.description}
-            >
+            <>
               <span style={{ fontSize: '2.4rem' }} aria-hidden="true">
                 {scene.emoji}
               </span>
               <span style={{ fontSize: '0.95rem', fontWeight: 500 }}>{scene.label}</span>
-            </button>
+            </>
           )
-        })}
-      </div>
+        }}
+        ariaLabel={(option) => READING_SCENES[option.id].description}
+        targetIcon={<Arend size={48} animate={false} />}
+        targetLabel="Arend's nest"
+        groupLabel="Kies het juiste plaatje"
+      />
     </ExerciseShell>
   )
 }

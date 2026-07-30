@@ -6,6 +6,7 @@ import { Vonk } from '../characters/Vonk'
 import { CrystalGroup } from '../common/CrystalGroup'
 import { getLocation } from '../../data/locations'
 import { useSound } from '../../hooks/useSound'
+import { AnswerStage } from './interactions/AnswerStage'
 
 const location = getLocation('drakengrot')!
 
@@ -74,32 +75,23 @@ export function MathExercise({ onSessionFinished }: MathExerciseProps) {
         <p style={{ opacity: 0.7 }}>Hij geeft er {question.operands?.[1]} weg.</p>
       )}
 
-      <div className="options-grid" role="group" aria-label="Kies het juiste antwoord">
-        {question.options.map((option) => {
-          const state =
-            session.selectedId === option.id
-              ? session.status === 'correct'
-                ? 'correct'
-                : session.status === 'wrong'
-                  ? 'incorrect'
-                  : undefined
-              : undefined
-          return (
-            <button
-              key={option.id}
-              type="button"
-              className="option-card"
-              data-state={state}
-              onClick={() => session.submit(option.id)}
-              disabled={session.status !== 'idle'}
-              aria-label={`${option.label} kristallen`}
-            >
-              <CrystalGroup count={option.visualCount ?? Number(option.label)} size={20} />
-              {option.label}
-            </button>
-          )
-        })}
-      </div>
+      <AnswerStage
+        kind={session.currentInteraction}
+        options={question.options}
+        status={session.status}
+        selectedId={session.selectedId}
+        onSubmit={session.submit}
+        renderOption={(option) => (
+          <>
+            <CrystalGroup count={option.visualCount ?? Number(option.label)} size={20} />
+            {option.label}
+          </>
+        )}
+        ariaLabel={(option) => `${option.label} kristallen`}
+        targetIcon={<Vonk size={48} animate={false} />}
+        targetLabel="Vonk"
+        groupLabel="Kies het juiste antwoord"
+      />
     </ExerciseShell>
   )
 }

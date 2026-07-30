@@ -3,6 +3,7 @@ import type { ExerciseCategory, Question } from '../types'
 import { QUESTION_BANKS, QUESTIONS_PER_SESSION } from '../data'
 import { pickRandom, shuffle } from '../utils/random'
 import { useGame } from '../state/GameContext'
+import { INTERACTION_KINDS, type InteractionKind } from '../components/exercises/interactions/types'
 
 export type AnswerStatus = 'idle' | 'correct' | 'wrong'
 
@@ -10,6 +11,7 @@ interface UseExerciseSessionResult {
   questions: Question[]
   currentIndex: number
   currentQuestion: Question
+  currentInteraction: InteractionKind
   status: AnswerStatus
   selectedId: string | null
   attemptsOnCurrent: number
@@ -37,6 +39,9 @@ export function useExerciseSession(
       })),
     [category],
   )
+  // A fresh shuffled permutation of all 5 mechanics per session, so a session
+  // of 5 questions uses every mechanic exactly once, in a new order each time.
+  const interactionOrder = useMemo(() => shuffle(INTERACTION_KINDS), [category])
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [status, setStatus] = useState<AnswerStatus>('idle')
@@ -55,6 +60,7 @@ export function useExerciseSession(
   }, [])
 
   const currentQuestion = questions[Math.min(currentIndex, questions.length - 1)]
+  const currentInteraction = interactionOrder[Math.min(currentIndex, interactionOrder.length - 1)]
 
   const submit = (optionId: string) => {
     if (status !== 'idle' || finished) return
@@ -93,6 +99,7 @@ export function useExerciseSession(
     questions,
     currentIndex,
     currentQuestion,
+    currentInteraction,
     status,
     selectedId,
     attemptsOnCurrent,

@@ -5,6 +5,7 @@ import { useSound } from '../../hooks/useSound'
 import { ExerciseShell } from './ExerciseShell'
 import { Kage } from '../characters/Kage'
 import { getLocation } from '../../data/locations'
+import { AnswerStage } from './interactions/AnswerStage'
 
 const location = getLocation('ninjabos')!
 
@@ -64,30 +65,18 @@ export function LetterExercise({ onSessionFinished }: LetterExerciseProps) {
         </span>
       )}
 
-      <div className="options-grid" role="group" aria-label="Kies het juiste antwoord">
-        {question.options.map((option) => {
-          const state =
-            session.selectedId === option.id
-              ? session.status === 'correct'
-                ? 'correct'
-                : session.status === 'wrong'
-                  ? 'incorrect'
-                  : undefined
-              : undefined
-          return (
-            <button
-              key={option.id}
-              type="button"
-              className="option-card"
-              data-state={state}
-              onClick={() => session.submit(option.id)}
-              disabled={session.status !== 'idle'}
-            >
-              {option.label}
-            </button>
-          )
-        })}
-      </div>
+      <AnswerStage
+        kind={session.currentInteraction}
+        options={question.options}
+        status={session.status}
+        selectedId={session.selectedId}
+        onSubmit={session.submit}
+        renderOption={(option) => option.label}
+        ariaLabel={() => undefined}
+        targetIcon={<Kage size={48} animate={false} />}
+        targetLabel="Kage's poort"
+        groupLabel="Kies het juiste antwoord"
+      />
     </ExerciseShell>
   )
 }

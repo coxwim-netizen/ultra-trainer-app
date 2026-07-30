@@ -49,6 +49,7 @@ src/
     characters/              # Vonk, Arend, Kage, Woud als originele SVG-tekeningen
     common/                  # Herbruikbare UI: knoppen, kristallen, sterretjes, modaal, ...
     exercises/                # ExerciseShell (gedeelde lay-out) + de 3 oefeningen
+      interactions/           # De 5 interactieve antwoordmechanismen (zie hieronder) + AnswerStage
     screens/                  # Start, naam, kaart, oefenscherm, beloning, overwinning, ouders
   utils/random.ts             # Kies 5 willekeurige vragen per sessie
   App.tsx                     # Schermrouter (eenvoudige state machine, geen library nodig)
@@ -57,6 +58,36 @@ src/
 Alle inhoud (vragen, teksten, badges) staat in `src/data/`, niet verspreid in
 de componenten. Dat maakt het makkelijk om later niveaus, locaties of talen
 toe te voegen zonder de UI aan te raken.
+
+## Interactieve antwoordmechanismen
+
+Antwoorden kiezen is meer dan klikken. Elke sessie van 5 vragen doorloopt een
+willekeurige volgorde van **5 verschillende mechanismen** — telkens 1 per
+vraag, dus elke sessie gebruikt ze allemaal, in een andere volgorde:
+
+- **Gooien** — tik om een sterretje te gooien; het juiste antwoord "valt om"
+  als een kegel.
+- **Slepen** — sleep het antwoord naar het karakter (Vonk / Arend's nest /
+  Kage's poort).
+- **Vangen** — de drie antwoorden zweven zachtjes; tik het juiste antwoord
+  terwijl het beweegt.
+- **Wegvegen** — veeg het juiste antwoord naar het karakter.
+- **Verbinden** — trek een lijn van het karakter naar het juiste antwoord.
+
+Dit zit in `src/components/exercises/interactions/`: elk mechanisme is een
+eigen component (`DragInteraction.tsx`, `ThrowInteraction.tsx`, ...) achter
+één gedeeld contract (`AnswerStageProps` in `types.ts`), en `AnswerStage.tsx`
+kiest welk component getoond wordt. `useExerciseSession` bepaalt de volgorde
+per sessie (`currentInteraction`) door de 5 mechanismen te schudden.
+
+**Toegankelijkheid:** onder elk mechanisme zit gewoon een echte `<button>`.
+Slepen, vegen en verbinden reageren op aanraking/muis-gestures, maar een
+gewone klik of Enter/spatie (toetsenbord, schermlezer) selecteert het
+antwoord altijd direct — niemand wordt uitgesloten van het spel omdat ze geen
+muis of aanraakscherm gebruiken.
+
+Een nieuwe oefening (zie hieronder) krijgt deze 5 mechanismen automatisch
+door `<AnswerStage>` te gebruiken in plaats van zelf knoppen te tekenen.
 
 ## Een vierde oefening toevoegen
 
@@ -70,9 +101,11 @@ toe te voegen zonder de UI aan te raken.
    `src/data/locations.ts` (naam, gids, badge, kristalnaam, themaklasse) en een
    bijpassende badge aan `BADGES`.
 5. **Component:** maak `src/components/exercises/ShapesExercise.tsx`. Gebruik
-   `useExerciseSession('shapes', onSessionFinished)` voor de logica en
+   `useExerciseSession('shapes', onSessionFinished)` voor de logica,
    `<ExerciseShell>` voor de vaste lay-out (locatienaam, gids, audio-knop,
-   voortgang, hulpknop, feedback). Kijk naar `MathExercise.tsx` als voorbeeld.
+   voortgang, hulpknop, feedback), en `<AnswerStage kind={session.currentInteraction} .../>`
+   voor de antwoorden zelf — dat geeft de nieuwe oefening automatisch alle 5
+   interactieve mechanismen. Kijk naar `MathExercise.tsx` als voorbeeld.
 6. **Routering:** voeg de nieuwe categorie toe in `ExerciseScreen.tsx` zodat
    die naar het juiste component verwijst.
 7. **(optioneel) Personage:** teken een nieuw personage als SVG-component in
@@ -130,6 +163,12 @@ Elke test rondt een volledige sessie van 5 vragen af (het juiste antwoord
 wordt afgeleid uit de vragenbank, niet hardgecodeerd) en controleert dat de
 sessie correct wordt afgesloten. De wiskundetest controleert ook dat een fout
 antwoord de voortgang niet reset en dat een nieuwe poging mogelijk blijft.
+Elk antwoord wordt in deze tests via een gewone klik gekozen — dat werkt
+altijd, ongeacht welk van de 5 mechanismen net actief is (zie hierboven),
+omdat elk mechanisme een echte klikbare knop als toegankelijke basis houdt.
+
+Daarnaast controleert `useExerciseSession.test.tsx` dat een sessie van 5
+vragen ook echt alle 5 interactieve mechanismen precies één keer gebruikt.
 
 ```bash
 npm run test
@@ -145,6 +184,11 @@ van `npm run dev`:
       opnieuw — de naam staat nog in het instellingenmenu/oudergebied).
 - [ ] Op de avontuurkaart zijn alle drie de locaties aanklikbaar, ook zonder
       volgorde te moeten volgen.
+- [ ] Binnen één sessie van 5 vragen wisselt het antwoordmechanisme (gooien,
+      slepen, vangen, wegvegen, verbinden) — en dus ook de plek van het juiste
+      antwoord — telkens van vraag tot vraag.
+- [ ] Elk mechanisme is ook met alleen het toetsenbord te bedienen (Tab +
+      Enter/spatie op een antwoord selecteert het direct).
 - [ ] In de Drakengrot toont elke vraag kristallen die overeenkomen met het
       getal, en leidt een fout antwoord tot een nieuwe poging (geen
       "Fout"-melding, geen verloren levens).
