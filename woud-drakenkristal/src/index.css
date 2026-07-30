@@ -638,6 +638,88 @@ a {
   color: inherit;
 }
 
+/* ---------- 3D exercise chrome ---------- */
+
+.scene3d-stage {
+  position: relative;
+  width: 100%;
+  height: min(78vh, 720px);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-soft);
+  background: #10141c;
+}
+
+.scene3d-canvas-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.scene3d-chrome-top {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.scene3d-title {
+  color: #fff;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  font-size: 1.3rem;
+}
+
+.scene3d-instruction-card {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(90%, 480px);
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: rgba(20, 20, 30, 0.55);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.1rem;
+  pointer-events: auto;
+}
+
+.scene3d-chrome-bottom {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  right: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.scene3d-chrome-bottom > * {
+  pointer-events: auto;
+}
+
+.scene3d-feedback {
+  min-height: 32px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: rgba(20, 20, 30, 0.55);
+  backdrop-filter: blur(8px);
+  color: #ffe8a3;
+  font-weight: 700;
+}
+
 /* ---------- Illustrated island adventure map ---------- */
 
 .pirate-map {
