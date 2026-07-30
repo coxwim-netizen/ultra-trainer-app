@@ -44,9 +44,9 @@ src/
   types.ts                  # Gedeelde TypeScript-types (Question, LocationInfo, ProgressState, ...)
   data/                     # Alle inhoud (geen hardcoded teksten in de UI)
     locations.ts            # De 3 locaties + badges + kaartposities/ontgrendel-logica
-    mathQuestions.ts         # Optel/aftrek-vragenbank (Drakengrot)
-    readingQuestions.ts     # Leesvragenbank + scène-illustraties (Arendsberg)
-    letterQuestions.ts      # Letter/woord-vragenbank + woordenlijst (Ninjabos)
+    mathQuestions.ts         # Optel/aftrek-vragenbank (Drakengrot) - alle 90 feiten tot 10, gegenereerd
+    readingQuestions.ts     # Leesvragenbank (25 zinnen) + scène-illustraties (Arendsberg)
+    letterQuestions.ts      # Letter/woord-vragenbank (30 vragen, 15 woorden) (Ninjabos)
     index.ts                # Verzamelt alle vragenbanken per categorie
   state/
     progressStore.ts        # localStorage lezen/schrijven
@@ -132,21 +132,25 @@ locatie terug op de bestaande stijl.
 
 ## Meer vragen toevoegen
 
-Open het juiste bestand in `src/data/` en voeg een item toe aan de
-`TEMPLATES`-array:
-
-- **Rekenen** (`mathQuestions.ts`): voeg `{ a, b, operator: '+' | '-', decoys: [x, y] }`
-  toe. Zorg dat het antwoord tussen 0 en 10 blijft.
-- **Lezen** (`readingQuestions.ts`): voeg een korte zin toe (max. ~6 woorden),
-  het woord om te markeren bij een fout antwoord, en drie scène-ID's uit
-  `READING_SCENES` (of voeg zelf een nieuwe scène toe aan die lijst).
+- **Rekenen** (`mathQuestions.ts`): niets te doen — alle 90 optel- en
+  aftreksommen tot 10 worden automatisch gegenereerd (`generateTemplates()`),
+  inclusief passende foute antwoorden. Wil je een ander soort som (bv.
+  vermenigvuldigen voor een later niveau), pas dan `generateTemplates()` aan.
+- **Lezen** (`readingQuestions.ts`): voeg een korte zin toe (max. ~6 woorden)
+  aan `TEMPLATES`, met het woord om te markeren bij een fout antwoord en drie
+  scène-ID's uit `READING_SCENES` (of voeg zelf een nieuwe scène toe aan die
+  lijst — het label/de beschrijving volgen hetzelfde patroon als de
+  bestaande scènes).
 - **Letters/woorden** (`letterQuestions.ts`): voeg een woord toe aan
-  `WORD_BANK` (met emoji en eerste letter) en gebruik het in een `letter`- of
-  `word`-template.
+  `WORD_BANK` (met emoji en eerste letter) — er wordt automatisch zowel een
+  "welke letter"- als een "welk woord"-vraag voor gegenereerd, met foute
+  antwoorden gekozen uit de rest van de bank.
 
 Elke sessie kiest automatisch 5 willekeurige vragen uit de volledige bank
-(`QUESTIONS_PER_SESSION` in `src/data/index.ts`), dus meer vragen toevoegen
-zorgt vanzelf voor meer variatie.
+(`QUESTIONS_PER_SESSION` in `src/data/index.ts`), en de optievolgorde wordt
+per sessie opnieuw geschud (`shuffle()` in `src/utils/random.ts`) — daarom
+staat het juiste antwoord nooit op een vaste plek en ziet een nieuwe sessie
+er telkens anders uit.
 
 ## Assets
 

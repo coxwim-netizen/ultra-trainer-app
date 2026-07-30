@@ -1,5 +1,11 @@
+/** Fisher-Yates: unbiased, unlike the common `sort(() => Math.random() - 0.5)` trick. */
 export function shuffle<T>(items: T[]): T[] {
-  return [...items].sort(() => 0.5 - Math.random())
+  const result = [...items]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
 }
 
 export function pickRandom<T>(items: T[], count: number): T[] {
