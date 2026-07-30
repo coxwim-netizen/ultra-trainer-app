@@ -6,9 +6,7 @@ function makeOptions(correct: number, near: number[]): Question['options'] {
     const extra = values[values.length - 1] + 1
     if (!values.includes(extra) && extra <= 10) values.push(extra)
   }
-  return values
-    .sort(() => 0.5 - Math.random())
-    .map((value) => ({ id: `v${value}`, label: String(value), visualCount: value }))
+  return values.map((value) => ({ id: `v${value}`, label: String(value), visualCount: value }))
 }
 
 interface MathTemplate {

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ExerciseCategory, Question } from '../types'
 import { QUESTION_BANKS, QUESTIONS_PER_SESSION } from '../data'
-import { pickRandom } from '../utils/random'
+import { pickRandom, shuffle } from '../utils/random'
 import { useGame } from '../state/GameContext'
 
 export type AnswerStatus = 'idle' | 'correct' | 'wrong'
@@ -27,7 +27,16 @@ export function useExerciseSession(
   onSessionFinished: () => void,
 ): UseExerciseSessionResult {
   const { recordAnswer } = useGame()
-  const questions = useMemo(() => pickRandom(QUESTION_BANKS[category], QUESTIONS_PER_SESSION), [category])
+  // Re-shuffle each question's option order fresh per session, so the correct
+  // answer's position varies both across questions and across replays.
+  const questions = useMemo(
+    () =>
+      pickRandom(QUESTION_BANKS[category], QUESTIONS_PER_SESSION).map((question) => ({
+        ...question,
+        options: shuffle(question.options),
+      })),
+    [category],
+  )
 
   const [currentIndex, setCurrentIndex] = useState(0)
   const [status, setStatus] = useState<AnswerStatus>('idle')
