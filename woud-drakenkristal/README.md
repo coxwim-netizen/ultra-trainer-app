@@ -8,6 +8,13 @@ voortgang wordt lokaal in de browser bewaard.
 reist naar de Drakengrot, Arendsberg en het Ninjabos, lost daar telkens een
 korte oefening op en verzamelt zo de drie kristalstukken.
 
+De avontuurkaart is een echte piratenkaart: een gestippeld pad verbindt de
+drie plekken. De eerste plek staat altijd open; een volgende plek ontgrendelt
+pas zodra de vorige is afgerond (al voltooide plekken blijven wel altijd
+opnieuw speelbaar). Na een geslaagde oefening kraakt er een drakenei open op
+de kaart, wandelt Woud naar de volgende plek, en barst er vuurwerk los — met
+nog groter vuurwerk op het uiteindelijke overwinningsscherm.
+
 ## Snel starten
 
 ```bash
@@ -33,7 +40,7 @@ npm run lint      # oxlint
 src/
   types.ts                  # Gedeelde TypeScript-types (Question, LocationInfo, ProgressState, ...)
   data/                     # Alle inhoud (geen hardcoded teksten in de UI)
-    locations.ts            # De 3 locaties + badges
+    locations.ts            # De 3 locaties + badges + kaartposities/ontgrendel-logica
     mathQuestions.ts         # Optel/aftrek-vragenbank (Drakengrot)
     readingQuestions.ts     # Leesvragenbank + scène-illustraties (Arendsberg)
     letterQuestions.ts      # Letter/woord-vragenbank + woordenlijst (Ninjabos)
@@ -47,7 +54,7 @@ src/
     useSound.ts              # Lichte geluidseffecten via de Web Audio API
   components/
     characters/              # Vonk, Arend, Kage, Woud als originele SVG-tekeningen
-    common/                  # Herbruikbare UI: knoppen, kristallen, sterretjes, modaal, ...
+    common/                  # Herbruikbare UI: knoppen, kristallen, sterretjes, vuurwerk, ei-animatie, modaal, ...
     exercises/                # ExerciseShell (gedeelde lay-out) + de 3 oefeningen
       interactions/           # De 5 interactieve antwoordmechanismen (zie hieronder) + AnswerStage
     screens/                  # Start, naam, kaart, oefenscherm, beloning, overwinning, ouders
@@ -182,8 +189,13 @@ van `npm run dev`:
 - [ ] Startscherm toont de titel en een grote "Start avontuur"-knop.
 - [ ] Naamscherm onthoudt de ingevoerde naam (herlaad de pagina en start
       opnieuw — de naam staat nog in het instellingenmenu/oudergebied).
-- [ ] Op de avontuurkaart zijn alle drie de locaties aanklikbaar, ook zonder
-      volgorde te moeten volgen.
+- [ ] Op de avontuurkaart is alleen Drakengrot in het begin open; Arendsberg
+      en Ninjabos tonen een slotje en zijn nog niet speelbaar.
+- [ ] Na het afronden van Drakengrot kraakt er een ei open op de kaart,
+      wandelt Woud naar Arendsberg, en verschijnt er kort vuurwerk — daarna is
+      Arendsberg ontgrendeld.
+- [ ] Een al voltooide plek blijft aanklikbaar en opnieuw speelbaar, ook nadat
+      een latere plek ontgrendeld is.
 - [ ] Binnen één sessie van 5 vragen wisselt het antwoordmechanisme (gooien,
       slepen, vangen, wegvegen, verbinden) — en dus ook de plek van het juiste
       antwoord — telkens van vraag tot vraag.
@@ -201,7 +213,7 @@ van `npm run dev`:
       en sterretjes, en brengt "Terug naar de kaart" je terug.
 - [ ] Een locatie is opnieuw speelbaar nadat hij al voltooid is.
 - [ ] Na alle drie de locaties verschijnt het overwinningsscherm met de naam
-      van het kind en de drie badges.
+      van het kind, de drie badges, en vuurwerk.
 - [ ] Het geluid-aan/uit-knopje en het instellingenmenu werken vanaf het
       startscherm.
 - [ ] Het oudergebied (instellingen ingedrukt houden gedurende 3 seconden)

@@ -42,6 +42,10 @@ export interface LocationInfo {
   crystalName: string
   crystalEmoji: string
   themeClass: string
+  /** Emoji marker shown on the adventure map at this location's waypoint. */
+  mapIcon: string
+  /** Position of this location's waypoint on the map, in percentages. */
+  mapPosition: { x: number; y: number }
 }
 
 export interface BadgeInfo {
@@ -71,7 +75,7 @@ export interface ProgressState {
 export type Screen =
   | { name: 'start' }
   | { name: 'name' }
-  | { name: 'map' }
+  | { name: 'map'; arrivingFrom?: LocationId }
   | { name: 'exercise'; location: LocationId }
   | { name: 'reward'; location: LocationId }
   | { name: 'victory' }

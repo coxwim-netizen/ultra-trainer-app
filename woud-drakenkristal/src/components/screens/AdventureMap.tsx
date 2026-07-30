@@ -1,59 +1,142 @@
+import { useEffect, useRef, useState } from 'react'
 import { useGame } from '../../state/GameContext'
-import { LOCATIONS } from '../../data/locations'
+import { LOCATIONS, getLocation, getFrontierLocation, isLocationUnlocked } from '../../data/locations'
 import { CrystalTracker } from '../common/CrystalTracker'
-import { Vonk } from '../characters/Vonk'
-import { Arend } from '../characters/Arend'
-import { Kage } from '../characters/Kage'
+import { EggHatch } from '../common/EggHatch'
+import { Fireworks } from '../common/Fireworks'
+import { Woud } from '../characters/Woud'
+import type { LocationInfo } from '../../types'
 
-const GUIDE_ICON: Record<string, typeof Vonk> = {
-  drakengrot: Vonk,
-  arendsberg: Arend,
-  ninjabos: Kage,
+function pathD(points: { x: number; y: number }[]): string {
+  const [first, ...rest] = points
+  const segments = rest.map((point) => `L ${point.x} ${point.y}`)
+  return `M ${first.x} ${first.y} ${segments.join(' ')}`
 }
 
 export function AdventureMap() {
-  const { progress, goTo } = useGame()
+  const { progress, goTo, screen } = useGame()
+  const arrivingFrom = screen.name === 'map' ? screen.arrivingFrom : undefined
+
+  const [cutscene, setCutscene] = useState<{ from: LocationInfo; to: LocationInfo | null } | null>(null)
+  const [eggTrigger, setEggTrigger] = useState(0)
+  const [fireworksTrigger, setFireworksTrigger] = useState(0)
+  const [announcement, setAnnouncement] = useState('')
+  const hasPlayedRef = useRef(false)
+
+  useEffect(() => {
+    if (!arrivingFrom || hasPlayedRef.current) return
+    hasPlayedRef.current = true
+    const fromLocation = getLocation(arrivingFrom)!
+    const toLocation = getFrontierLocation(progress.completedLocations)
+    setCutscene({ from: fromLocation, to: toLocation })
+    setEggTrigger((t) => t + 1)
+    setFireworksTrigger((t) => t + 1)
+    setAnnouncement(
+      toLocation
+        ? `Het drakenei kraakt open! Woud gaat verder naar ${toLocation.name}.`
+        : 'Het drakenei kraakt open!',
+    )
+    const timeout = window.setTimeout(() => {
+      setCutscene(null)
+      goTo({ name: 'map' })
+    }, 2700)
+    return () => window.clearTimeout(timeout)
+  }, [arrivingFrom, progress.completedLocations, goTo])
 
   const allDone = LOCATIONS.every((location) => progress.completedLocations.includes(location.id))
+  const frontier = getFrontierLocation(progress.completedLocations)
+  const restingLocation = frontier ?? LOCATIONS[LOCATIONS.length - 1]
+  // Before the arrival effect has run, still show Woud at the place they came
+  // from — otherwise the very first paint already shows the destination (the
+  // location is already marked completed by then) and there's nothing to
+  // visibly walk from.
+  const initialPosition = arrivingFrom ? getLocation(arrivingFrom)!.mapPosition : restingLocation.mapPosition
+  const woudPosition = cutscene ? (cutscene.to ?? cutscene.from).mapPosition : initialPosition
 
   return (
     <div className="stack">
       <div className="center-col" style={{ gap: 8 }}>
         <h2>Avontuurkaart</h2>
-        <p>Kies een plek om te ontdekken, {progress.playerName}!</p>
+        <p>Volg het pad en ontdek de volgende plek, {progress.playerName}!</p>
         <CrystalTracker completedLocations={progress.completedLocations} />
       </div>
 
-      <div className="stack" style={{ gap: 20 }}>
+      <div className="visually-hidden" role="status" aria-live="polite">
+        {announcement}
+      </div>
+
+      <div className="pirate-map">
+        <span className="pirate-map__compass" aria-hidden="true">
+          🧭
+        </span>
+
+        <svg className="pirate-map__path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          <path d={pathD(LOCATIONS.map((l) => l.mapPosition))} className="pirate-map__path-line" />
+        </svg>
+
         {LOCATIONS.map((location) => {
-          const Guide = GUIDE_ICON[location.id]
           const done = progress.completedLocations.includes(location.id)
+          const unlocked = isLocationUnlocked(progress.completedLocations, location.id)
+          const isFrontier = frontier?.id === location.id
+
           return (
             <button
               key={location.id}
               type="button"
-              className={`card location-card ${location.themeClass}`}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 16,
-                width: '100%',
-                textAlign: 'left',
-                cursor: 'pointer',
+              className={`map-marker ${location.themeClass}`}
+              style={{ left: `${location.mapPosition.x}%`, top: `${location.mapPosition.y}%` }}
+              data-locked={!unlocked}
+              data-frontier={isFrontier}
+              onClick={() => {
+                if (!unlocked) {
+                  const previous = LOCATIONS[LOCATIONS.findIndex((l) => l.id === location.id) - 1]
+                  setAnnouncement(`Rond eerst ${previous?.name ?? 'de vorige plek'} af om hier te komen.`)
+                  return
+                }
+                goTo({ name: 'exercise', location: location.id })
               }}
-              onClick={() => goTo({ name: 'exercise', location: location.id })}
+              aria-label={
+                unlocked
+                  ? `${location.name}${done ? ' (voltooid, opnieuw spelen)' : ''} — ${location.tagline}`
+                  : `${location.name} — nog gesloten`
+              }
             >
-              <Guide size={72} animate={false} />
-              <span className="stack" style={{ gap: 4, flex: 1 }}>
-                <span className="row-between">
-                  <strong style={{ fontSize: '1.3rem' }}>{location.name}</strong>
-                  {done && <span aria-label="Voltooid" title="Voltooid">⭐</span>}
-                </span>
-                <span>{location.tagline}</span>
+              <span className="map-marker__icon" aria-hidden="true">
+                {location.mapIcon}
               </span>
+              <span className="map-marker__label">{location.name}</span>
+              {done && (
+                <span className="map-marker__badge" aria-hidden="true">
+                  ⭐
+                </span>
+              )}
+              {!unlocked && (
+                <span className="map-marker__badge" aria-hidden="true">
+                  🔒
+                </span>
+              )}
             </button>
           )
         })}
+
+        <div
+          className="map-woud"
+          style={{ left: `${woudPosition.x}%`, top: `${woudPosition.y}%` }}
+          aria-hidden="true"
+        >
+          <Woud size={56} />
+        </div>
+
+        {cutscene && (
+          <div
+            className="map-egg-slot"
+            style={{ left: `${cutscene.from.mapPosition.x}%`, top: `${cutscene.from.mapPosition.y}%` }}
+          >
+            <EggHatch trigger={eggTrigger} />
+          </div>
+        )}
+
+        <Fireworks trigger={fireworksTrigger} />
       </div>
 
       {allDone && (

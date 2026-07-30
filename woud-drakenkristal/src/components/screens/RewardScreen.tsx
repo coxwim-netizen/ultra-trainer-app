@@ -52,7 +52,7 @@ export function RewardScreen({ locationId }: RewardScreenProps) {
         <button
           type="button"
           className="btn btn-primary btn-large"
-          onClick={() => goTo(allDone ? { name: 'victory' } : { name: 'map' })}
+          onClick={() => goTo(allDone ? { name: 'victory' } : { name: 'map', arrivingFrom: locationId })}
         >
           {allDone ? '🏆 Naar het Drakenkristal!' : '🗺️ Terug naar de kaart'}
         </button>

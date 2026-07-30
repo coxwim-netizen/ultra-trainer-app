@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useGame } from '../../state/GameContext'
 import { BADGES } from '../../data/locations'
 import { Sparkles } from '../common/Sparkles'
+import { Fireworks } from '../common/Fireworks'
 import { useSound } from '../../hooks/useSound'
 import { Vonk } from '../characters/Vonk'
 
@@ -16,6 +17,7 @@ export function VictoryScreen() {
   return (
     <div className="center-col" style={{ position: 'relative', paddingTop: 20 }}>
       <Sparkles trigger={1} count={24} />
+      <Fireworks trigger={1} bursts={4} />
       <div style={{ position: 'relative', width: 220, height: 220 }}>
         <p style={{ fontSize: '6rem', margin: 0 }} aria-hidden="true">
           💎
