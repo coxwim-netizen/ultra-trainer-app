@@ -8,6 +8,7 @@ import { CrystalGroup3D } from '../three/Crystal3D'
 import { Drag3DInteraction } from './interactions3d/Drag3DInteraction'
 import { AccessibleOverlay } from '../three/AccessibleOverlay'
 import { ExerciseShell3D } from './ExerciseShell3D'
+import { CaveDecor } from './CaveDecor'
 
 const location = getLocation('drakengrot')!
 
@@ -51,8 +52,9 @@ export function Math3DExercise({ onSessionFinished }: Math3DExerciseProps) {
       }
       scene={
         <SceneShell backgroundColor="#2a1a3d" groundColor="#4a2f1a" fogColor="#2a1a3d">
+          <CaveDecor />
           <Vonk3D position={[0, 0, 1.8]} scale={1.1} breatheFire={session.status === 'correct'} />
-          <CrystalGroup3D count={question.visualNumber ?? 0} position={[1.5, -0.15, 3.1]} compact />
+          <CrystalGroup3D count={question.visualNumber ?? 0} position={[1.9, -0.15, 3.4]} compact />
           <Drag3DInteraction
             options={question.options}
             status={session.status}
